@@ -37,6 +37,35 @@ def fastq_trim(args):
             read2.name = "{name}:CELL_{cell}:UMI_{umi}".format(name=read2.name, cell=read1.seq[args.cbs-1:args.cbe], umi=read1.seq[args.mbs-1:args.mbe])
             read2.write_to_fastq_file(fastq_out)
 
+
+def stream_fastq(file_handler):
+    ''' Generator which gives all four lines if a fastq read as one string
+    '''
+    next_element = ''
+    for i, line in enumerate(file_handler):
+        next_element += line
+        if i % 4 == 3:
+            yield next_element
+            next_element =''
+
+
+def fastq_transform(args):
+    ''' Transform input reads to the umicount compatible read layout using regular expressions
+    as defined in a transform file. [To be described]
+    '''
+    read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+
+    fastq_file1 = stream_fastq(open(args.fastq1))
+    fastq_file2 = stream_fastq(open(args.fastq2))
+    fastq_out = open(args.outfastq, "w")
+    for read1, read2 in itertools.izip(fastq1_file, fastq2_file):
+        # Need to deal with quality!
+        if True:
+            # Here parse the reads with the regexes
+            read_dict = {}  # And combine the data here
+            fastq_out.write(read_template.format(**read_dict))
+
+
 def extract_cellbarcode(rname):
     return findall("CELL_(\w*):", rname)[0].strip()
 
