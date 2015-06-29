@@ -34,7 +34,11 @@ def fastq_trim(args):
             if read1.name != read2.name:
                 sys.exit("read1 name does not match read2 name")
                 
-            read2.name = "{name}:CELL_{cell}:UMI_{umi}".format(name=read2.name, cell=read1.seq[args.cbs-1:args.cbe], umi=read1.seq[args.mbs-1:args.mbe])
+            read2.name = "{name}:CELL_{cell}:UMI_{umi}".format(
+                name=read2.name,
+                cell=read1.seq[args.cbs-1:args.cbe],
+                umi=read1.seq[args.mbs-1:args.mbe])
+            
             read2.write_to_fastq_file(fastq_out)
 
 
