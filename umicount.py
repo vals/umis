@@ -55,6 +55,10 @@ def fastq_transform(args):
     '''
     read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
 
+    # These regexes should be read from a file.
+    read1_regex = '(?P<name>@.*):(?P<CB>.{6}):(?P<MB>.{4,8})\\n(?P<seq>.*)\\n\+\\n(?P<qual>.*)\\n'
+    read2_regex = None
+
     fastq_file1 = stream_fastq(open(args.fastq1))
     fastq_file2 = stream_fastq(open(args.fastq2))
     fastq_out = open(args.outfastq, "w")
