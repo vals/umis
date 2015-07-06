@@ -61,15 +61,19 @@ def fastq_transform(args):
     read2_regex = None
 
     fastq_file1 = stream_fastq(open(args.fastq1))
-    fastq_file2 = stream_fastq(open(args.fastq2)) if args.fastq2 else itertools.chain((None,))
+    fastq_file2 = stream_fastq(open(args.fastq2)) if args.fastq2 else itertools.cycle((None,))
     fastq_out = open(args.outfastq, "w")
     for read1, read2 in itertools.izip(fastq_file1, fastq_file2):
         # Need to deal with quality!
         if True:
             # Here parse the reads with the regexes
             read1_dict = read1_regex.search(read1).groupdict()
-            read_dict = {}  # And combine the data here
+            read2_dict = {}
+            read_dict = read1_dict.copy()
+            read_dict.update(read2_dict)
             fastq_out.write(read_template.format(**read_dict))
+
+    fastq_out.close()
 
 
 def extract_cellbarcode(rname):
