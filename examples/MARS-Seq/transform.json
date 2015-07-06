@@ -1,4 +1,4 @@
 {
-    "read1": "(?P<name>@.*):(?P<CB>.{6}):(?P<MB>.{4,8})\\n(?P<seq>.*)\\n\\+\\n(?P<qual>.*)\\n",
+    "read1": "(?P<name>@.*) .*:(?P<CB>.{6}):(?P<MB>.{4,8})\\n(?P<seq>.*)\\n\\+\\n(?P<qual>.*)\\n",
     "read2": null
 }

@@ -59,7 +59,7 @@ def fastq_transform(args):
 
     transform = json.load(open(args.transform))
     read1_regex = re.compile(transform['read1'])
-    read2_regex = None
+    read2_regex = re.compile(transform['read2']) if args.fastq2 else None
 
     fastq_file1 = stream_fastq(open(args.fastq1))
     fastq_file2 = stream_fastq(open(args.fastq2)) if args.fastq2 else itertools.cycle((None,))
@@ -67,7 +67,7 @@ def fastq_transform(args):
     for read1, read2 in itertools.izip(fastq_file1, fastq_file2):
         # Parse the reads with the regexes
         read1_dict = read1_regex.search(read1).groupdict()
-        read2_dict = {}
+        read2_dict = read2_regex.search(read2).groupdict() if args.fastq2 else {}
         read1_dict.update(read2_dict)
         # Need to deal with quality!
         if True:
