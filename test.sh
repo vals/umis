@@ -32,3 +32,10 @@ python umicount.py fastqtransform \
 --transform examples/STRT-Seq/SRP045452_transform.json \
 --demuxed_cb A01 \
 --outfastq test6.fq
+
+python umicount.py fastqtransform \
+--fastq1 examples/BATseq/SRR1558183_1.fastq \
+--fastq2 examples/BATseq/SRR1558183_2.fastq \
+--transform examples/BATSeq/transform.json \
+--demuxed_cb CACTGT \
+--outfastq test7.fq

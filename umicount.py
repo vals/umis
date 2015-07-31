@@ -82,12 +82,12 @@ def fastq_transform(args):
         else:
             read2_dict = dict()
 
+        read1_dict.update(read2_dict)
+
         if args.demuxed_cb:
             read1_dict['CB'] = args.demuxed_cb
 
-        # Need to deal with quality!
-        if True:
-            fastq_out.write(read_template.format(**read1_dict))
+        fastq_out.write(read_template.format(**read1_dict))
 
     fastq_out.close()
 
