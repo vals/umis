@@ -39,3 +39,9 @@ python umicount.py fastqtransform \
 --transform examples/BATSeq/transform.json \
 --demuxed_cb CACTGT \
 --outfastq test7.fq
+
+python umicount.py fastqtransform \
+--fastq1 examples/CEL-Seq/SRP036633_1.fastq.gz \
+--fastq2 examples/CEL-Seq/SRP036633_2.fastq.gz \
+--transform examples/CEL-Seq/transform.json \
+--outfastq test8.fq

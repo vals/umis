@@ -10,6 +10,7 @@ import re
 from re import findall
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import json
+import gzip
 
 """
 umicount: Tools for processing unique molecular identifiers of single-cell RNA-sequencing
@@ -61,8 +62,22 @@ def fastq_transform(args):
     read1_regex = re.compile(transform['read1'])
     read2_regex = re.compile(transform['read2']) if args.fastq2 else None
 
-    fastq_file1 = stream_fastq(open(args.fastq1))
-    fastq_file2 = stream_fastq(open(args.fastq2)) if args.fastq2 else itertools.cycle((None,))
+    fastq1_fh = open(args.fastq1)
+    if args.fastq1.endswith('gz'):
+        fastq1_fh = gzip.GzipFile(fileobj=fastq1_fh)
+
+    fastq_file1 = stream_fastq(fastq1_fh)
+
+    if args.fastq2:
+        fastq2_fh = open(args.fastq2)
+        if args.fastq2.endswith('gz'):
+            fastq2_fh = gzip.GzipFile(fileobj=fastq2_fh)
+
+        fastq_file2 = stream_fastq(fastq2_fh)
+
+    else:
+        fastq_file2 = itertools.cycle((None,))
+
     fastq_out = open(args.outfastq, "w")
     for read1, read2 in itertools.izip(fastq_file1, fastq_file2):
         # Parse the reads with the regexes
