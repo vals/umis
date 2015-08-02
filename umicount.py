@@ -10,6 +10,7 @@ import re
 from re import findall
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import json
+import gzip
 
 """
 umicount: Tools for processing unique molecular identifiers of single-cell RNA-sequencing
@@ -65,17 +66,47 @@ def fastq_transform(args):
     read1_regex = re.compile(transform['read1'])
     read2_regex = re.compile(transform['read2']) if args.fastq2 else None
 
-    fastq_file1 = stream_fastq(open(args.fastq1))
-    fastq_file2 = stream_fastq(open(args.fastq2)) if args.fastq2 else itertools.cycle((None,))
+    fastq1_fh = open(args.fastq1)
+    if args.fastq1.endswith('gz'):
+        fastq1_fh = gzip.GzipFile(fileobj=fastq1_fh)
+
+    fastq_file1 = stream_fastq(fastq1_fh)
+
+    if args.fastq2:
+        fastq2_fh = open(args.fastq2)
+        if args.fastq2.endswith('gz'):
+            fastq2_fh = gzip.GzipFile(fileobj=fastq2_fh)
+
+        fastq_file2 = stream_fastq(fastq2_fh)
+
+    else:
+        fastq_file2 = itertools.cycle((None,))
+
     fastq_out = open(args.outfastq, "w")
     for read1, read2 in itertools.izip(fastq_file1, fastq_file2):
         # Parse the reads with the regexes
-        read1_dict = read1_regex.search(read1).groupdict()
-        read2_dict = read2_regex.search(read2).groupdict() if args.fastq2 else {}
+        read1_match = read1_regex.search(read1)
+        if not read1_match:
+            continue
+
+        read1_dict = read1_match.groupdict()
+
+        if args.fastq2:
+            read2_match = read2_regex.search(read2)
+            if not read2_match:
+                continue
+
+            read2_dict = read2_match.groupdict()
+
+        else:
+            read2_dict = dict()
+
         read1_dict.update(read2_dict)
-        # Need to deal with quality!
-        if True:
-            fastq_out.write(read_template.format(**read1_dict))
+
+        if args.demuxed_cb:
+            read1_dict['CB'] = args.demuxed_cb
+
+        fastq_out.write(read_template.format(**read1_dict))
 
     fastq_out.close()
 
@@ -171,14 +202,15 @@ def main():
     parser = ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(help="subcommad help")
 
-    subparser_fastqtrim = subparsers.add_parser("fastqtransform", description="Reformat fastq reads to umicount compatible format",
+    subparser_fastqtransform = subparsers.add_parser("fastqtransform", description="Reformat fastq reads to umicount compatible format",
                                                                   formatter_class=ArgumentDefaultsHelpFormatter,
                                                                   help="trim cell and molecular barcodes and incorporate them into read name")
-    subparser_fastqtrim.add_argument("--fastq1", metavar="FASTQ1", help="input FASTQ file 1", required=True)
-    subparser_fastqtrim.add_argument("--fastq2", metavar="FASTQ1", help="input FASTQ file 2 for paired-end reads", required=False)
-    subparser_fastqtrim.add_argument("--transform", metavar="TRANSFORM", help="FASTQ Transform JSON file", required=True)
-    subparser_fastqtrim.add_argument("--outfastq", metavar="FASTQOUT", help="output FASTQ file for FASTQ1", required=True)
-    subparser_fastqtrim.set_defaults(func=fastq_transform)
+    subparser_fastqtransform.add_argument("--fastq1", metavar="FASTQ1", help="input FASTQ file 1", required=True)
+    subparser_fastqtransform.add_argument("--fastq2", metavar="FASTQ1", help="input FASTQ file 2 for paired-end reads", required=False)
+    subparser_fastqtransform.add_argument("--transform", metavar="TRANSFORM", help="FASTQ Transform JSON file", required=True)
+    subparser_fastqtransform.add_argument("--outfastq", metavar="FASTQOUT", help="output FASTQ file for FASTQ1", required=True)
+    subparser_fastqtransform.add_argument("--demuxed_cb", metavar="DEMUXED_CB", help="Set CB value to this in the transformed read name. Use this if your files have already been demultiplexed (e.g. STRT-Seq).", required=False)
+    subparser_fastqtransform.set_defaults(func=fastq_transform)
 
     subparser_fastqtrim = subparsers.add_parser("fastqtrim", description="Trim the cell and molecular barcodes from the read", formatter_class=ArgumentDefaultsHelpFormatter, help="trim cell and molecular barcodes and incorporate them into read name")
     subparser_fastqtrim.add_argument("--fastq1", metavar="FASTQ1", help="input FASTQ file 1", required=True)
