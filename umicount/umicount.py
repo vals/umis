@@ -130,6 +130,48 @@ def check_exon_overlap(iv, exons):
 Tools for making a UMI count table (genes by cells) in the single-merged SAM file
 """
 
+def tag_count(args):
+    ''' Count up evidence for tagged molecules
+    '''
+    from hts import Bam
+
+    sam_file = Bam(args.sam)
+
+    gene_map = None
+    if args.geneMap:
+        with open(args.geneMap) as fh:
+            gene_map = dict(p.strip().split() for p in fh)
+
+    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
+
+    evidence = collections.defaultdict(int)
+
+    for i, aln in enumerate(sam_file):
+        if aln.tname:
+            match = parser_re.search(aln.qname).groupdict()
+            CB = match['CB']
+            MB = match['MB']
+
+            if gene_map:
+                target_name = gene_map[aln.tname]
+            else:
+                target_name = aln.tname
+
+            if args.positional:
+                e_tuple = (CB, target_name, aln.pos, MB)
+            else:
+                e_tuple = (CB, target_name, MB)
+            
+            # TODO: Parsing NH should be more robust.
+            nh = float(aln.aux[-1][-1])  # Number of hits per read
+            evidence[e_tuple] += 1. / nh
+
+    with open(args.out, 'w') as out_fh:
+        for key in evidence:
+            line = ','.join(map(str, key)) + ',' + str(evidence[key]) + '\n'
+            out_fh.write(line)
+
+
 def sam_spike_count(sam_file, cell_barcodes, gene_cell_umi_sets, gene_umi_sets, minaqual, umilen):
     for aln in sam_file:
         if aln.aligned and aln.aQual >= minaqual:
@@ -222,6 +264,17 @@ def main():
     subparser_fastqtrim.add_argument("--mbe", metavar="UMIEND", help="end position of molecular barcode (UMI), e.g. 20", required=True, type=int)
     subparser_fastqtrim.add_argument("--minqual", metavar="MINQUAL", help="remove all reads with the minimum Phred quality score within the cell and molecular barcodes lower than the given minimum value", default=10, type=int)
     subparser_fastqtrim.set_defaults(func=fastq_trim)
+
+    subparser_tagcount = subparsers.add_parser("tagcount", description="Count tag evidence from the SAM file",
+                                                        formatter_class=ArgumentDefaultsHelpFormatter,
+                                                        help="count reads from the SAM file")
+    subparser_tagcount.add_argument("--sam", metavar="SAM", help="SAM file", required=True)
+    subparser_tagcount.add_argument("--geneMap", "-g", metavar="GENEMAP",
+                                                       help="Mapping of transcripts to genes", required=False)
+    subparser_tagcount.add_argument("--positional", help="Consider position in transcript as molecular evidence",
+                                                    required=False, action='store_true')
+    subparser_tagcount.add_argument("--out", metavar="OUT", help="Output file", required=True)
+    subparser_tagcount.set_defaults(func=tag_count)
 
     subparser_samcount = subparsers.add_parser("samcount", description="Count reads from the SAM file", formatter_class=ArgumentDefaultsHelpFormatter, help="count reads from the SAM file")
     subparser_samcount.add_argument("--sam", metavar="SAM", help="SAM file", required=True)
