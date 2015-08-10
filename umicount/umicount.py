@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
-import sys
 import itertools
 import collections
-import copy
 import re
-from re import findall
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import json
 import gzip
+import sys
+
+import click
 
 
 def stream_fastq(file_handler):
@@ -22,25 +21,30 @@ def stream_fastq(file_handler):
             next_element =''
 
 
-def fastq_transform(args):
+@click.command()
+@click.argument('transform', required=True)
+@click.argument('fastq1', required=True)
+@click.argument('fastq2', default=None, required=False)
+@click.option('--demuxed_cb', default=None)
+def fastqtransform(transform, fastq1, fastq2, demuxed_cb):
     ''' Transform input reads to the umicount compatible read layout using regular expressions
-    as defined in a transform file. [To be described]
+    as defined in a transform file. Outputs new format to stdout.
     '''
     read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
 
-    transform = json.load(open(args.transform))
+    transform = json.load(open(transform))
     read1_regex = re.compile(transform['read1'])
-    read2_regex = re.compile(transform['read2']) if args.fastq2 else None
+    read2_regex = re.compile(transform['read2']) if fastq2 else None
 
-    fastq1_fh = open(args.fastq1)
-    if args.fastq1.endswith('gz'):
+    fastq1_fh = open(fastq1)
+    if fastq1.endswith('gz'):
         fastq1_fh = gzip.GzipFile(fileobj=fastq1_fh)
 
     fastq_file1 = stream_fastq(fastq1_fh)
 
-    if args.fastq2:
-        fastq2_fh = open(args.fastq2)
-        if args.fastq2.endswith('gz'):
+    if fastq2:
+        fastq2_fh = open(fastq2)
+        if fastq2.endswith('gz'):
             fastq2_fh = gzip.GzipFile(fileobj=fastq2_fh)
 
         fastq_file2 = stream_fastq(fastq2_fh)
@@ -48,7 +52,6 @@ def fastq_transform(args):
     else:
         fastq_file2 = itertools.cycle((None,))
 
-    fastq_out = open(args.outfastq, "w")
     for read1, read2 in itertools.izip(fastq_file1, fastq_file2):
         # Parse the reads with the regexes
         read1_match = read1_regex.search(read1)
@@ -57,7 +60,7 @@ def fastq_transform(args):
 
         read1_dict = read1_match.groupdict()
 
-        if args.fastq2:
+        if fastq2:
             read2_match = read2_regex.search(read2)
             if not read2_match:
                 continue
@@ -69,31 +72,32 @@ def fastq_transform(args):
 
         read1_dict.update(read2_dict)
 
-        if args.demuxed_cb:
-            read1_dict['CB'] = args.demuxed_cb
+        if demuxed_cb:
+            read1_dict['CB'] = demuxed_cb
 
         # Output the restrutured read
-        fastq_out.write(read_template.format(**read1_dict))
+        sys.stdout.write(read_template.format(**read1_dict))
 
-    fastq_out.close()
 
-"""
-Tools for making a UMI count table (genes by cells) in the single-merged SAM file
-"""
-
-def tag_count(args):
+@click.command()
+@click.argument('genemap', required=False)
+@click.argument('sam', type=click.File('r'))
+@click.argument('out')
+@click.option('--output_evidence_table', default=None)
+@click.option('--positional', default=False)
+def tagcount(genemap, sam, out, output_evidence_table, positional):
     ''' Count up evidence for tagged molecules
     '''
     from simplesam import Reader
     from cStringIO import StringIO
     import pandas as pd
 
-    sam_file = Reader(open(args.sam))
-
     gene_map = None
-    if args.geneMap:
-        with open(args.geneMap) as fh:
+    if genemap:
+        with open(genemap) as fh:
             gene_map = dict(p.strip().split() for p in fh)
+
+    sam_file = Reader(sam)
 
     parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
 
@@ -110,7 +114,7 @@ def tag_count(args):
             else:
                 target_name = aln.rname
 
-            if args.positional:
+            if positional:
                 e_tuple = (CB, target_name, aln.pos, MB)
             else:
                 e_tuple = (CB, target_name, MB)
@@ -138,64 +142,18 @@ def tag_count(args):
     genes = expanded.ix[genes.index]
     genes.replace(pd.np.nan, 0, inplace=True)
 
-    if args.evidence_table:
+    if output_evidence_table:
         import shutil
         buf.seek(0)
-        with open(args.evidence_table, 'w') as etab_fh:
+        with open(output_evidence_table, 'w') as etab_fh:
             shutil.copyfileobj(buf, etab_fh)
 
-    genes.to_csv(args.out)
+    genes.to_csv(out)
 
 
-def sam_spike_count(sam_file, cell_barcodes, gene_cell_umi_sets, gene_umi_sets, minaqual, umilen):
-    for aln in sam_file:
-        if aln.aligned and aln.aQual >= minaqual:
-            umi = extract_umi(aln.read.name)
-            if umilen is not None:
-                umi = umi[:umilen]
-            cell = extract_cellbarcode(aln.read.name)
-            if cell in cell_barcodes:
-                if cell not in gene_cell_umi_sets:
-                    gene_cell_umi_sets[cell] = copy.deepcopy(gene_umi_sets)
-                gene_cell_umi_sets[cell][aln.iv.chrom].add(umi)
+@click.group()
+def umicount():
+    pass
 
-    gene_cell_counts = collections.defaultdict(dict)
-    for cell in gene_cell_umi_sets:
-        for gene in gene_cell_umi_sets[cell]:
-            gene_cell_counts[cell][gene] = len(gene_cell_umi_sets[cell][gene])
-    
-    return gene_cell_counts
-
-
-def main():
-    parser = ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(help="subcommad help")
-
-    subparser_fastqtransform = subparsers.add_parser("fastqtransform", description="Reformat fastq reads to umicount compatible format",
-                                                                  formatter_class=ArgumentDefaultsHelpFormatter,
-                                                                  help="trim cell and molecular barcodes and incorporate them into read name")
-    subparser_fastqtransform.add_argument("--fastq1", metavar="FASTQ1", help="input FASTQ file 1", required=True)
-    subparser_fastqtransform.add_argument("--fastq2", metavar="FASTQ1", help="input FASTQ file 2 for paired-end reads", required=False)
-    subparser_fastqtransform.add_argument("--transform", metavar="TRANSFORM", help="FASTQ Transform JSON file", required=True)
-    subparser_fastqtransform.add_argument("--outfastq", metavar="FASTQOUT", help="output FASTQ file for FASTQ1", required=True)
-    subparser_fastqtransform.add_argument("--demuxed_cb", metavar="DEMUXED_CB", help="Set CB value to this in the transformed read name. Use this if your files have already been demultiplexed (e.g. STRT-Seq).", required=False)
-    subparser_fastqtransform.set_defaults(func=fastq_transform)
-
-    subparser_tagcount = subparsers.add_parser("tagcount", description="Count tag evidence from the SAM file",
-                                                        formatter_class=ArgumentDefaultsHelpFormatter,
-                                                        help="count reads from the SAM file")
-    subparser_tagcount.add_argument("--sam", metavar="SAM", help="SAM file", required=True)
-    subparser_tagcount.add_argument("--geneMap", "-g", metavar="GENEMAP",
-                                                       help="Mapping of transcripts to genes", required=False)
-    subparser_tagcount.add_argument("--positional", help="Consider position in transcript as molecular evidence",
-                                                    required=False, action='store_true')
-    subparser_tagcount.add_argument("--out", metavar="OUT", help="Output file", required=True)
-    subparser_tagcount.add_argument("--evidence_table", metavar="ETAB", help="Save evidence table", required=False)
-    subparser_tagcount.set_defaults(func=tag_count)
-
-    
-    args = parser.parse_args()
-    args.func(args)
-
-if __name__ == "__main__":
-    main()
+umicount.add_command(fastqtransform)
+umicount.add_command(tagcount)
