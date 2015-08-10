@@ -133,9 +133,9 @@ Tools for making a UMI count table (genes by cells) in the single-merged SAM fil
 def tag_count(args):
     ''' Count up evidence for tagged molecules
     '''
-    from hts import Bam
+    from simplesam import Reader
 
-    sam_file = Bam(args.sam)
+    sam_file = Reader(open(args.sam))
 
     gene_map = None
     if args.geneMap:
@@ -147,15 +147,15 @@ def tag_count(args):
     evidence = collections.defaultdict(int)
 
     for i, aln in enumerate(sam_file):
-        if aln.tname:
+        if aln.mapped:
             match = parser_re.search(aln.qname).groupdict()
             CB = match['CB']
             MB = match['MB']
 
             if gene_map:
-                target_name = gene_map[aln.tname]
+                target_name = gene_map[aln.rname]
             else:
-                target_name = aln.tname
+                target_name = aln.rname
 
             if args.positional:
                 e_tuple = (CB, target_name, aln.pos, MB)
@@ -163,7 +163,7 @@ def tag_count(args):
                 e_tuple = (CB, target_name, MB)
             
             # TODO: Parsing NH should be more robust.
-            nh = float(aln.aux[-1][-1])  # Number of hits per read
+            nh = float(aln._tags[-1].split('NH:i:')[-1])  # Number of hits per read
             evidence[e_tuple] += 1. / nh
 
     with open(args.out, 'w') as out_fh:
