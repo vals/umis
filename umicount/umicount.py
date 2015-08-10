@@ -105,6 +105,7 @@ def fastq_transform(args):
         if args.demuxed_cb:
             read1_dict['CB'] = args.demuxed_cb
 
+        # Output the restrutured read
         fastq_out.write(read_template.format(**read1_dict))
 
     fastq_out.close()
@@ -133,6 +134,8 @@ def tag_count(args):
     ''' Count up evidence for tagged molecules
     '''
     from simplesam import Reader
+    from cStringIO import StringIO
+    import pandas as pd
 
     sam_file = Reader(open(args.sam))
 
@@ -165,10 +168,27 @@ def tag_count(args):
             nh = float(aln._tags[-1].split('NH:i:')[-1])  # Number of hits per read
             evidence[e_tuple] += 1. / nh
 
-    with open(args.out, 'w') as out_fh:
-        for key in evidence:
-            line = ','.join(map(str, key)) + ',' + str(evidence[key]) + '\n'
-            out_fh.write(line)
+    buf = StringIO()
+    for key in evidence:
+        line = ','.join(map(str, key)) + ',' + str(evidence[key]) + '\n'
+        buf.write(line)
+
+    buf.seek(0)
+    evidence_table = pd.read_csv(buf)
+    evidence_table.columns=['cell', 'gene', 'umi', 'evidence']
+
+    # TODO: Make required amount of evidence for a tagged molecule a parameter
+    # TODO: How to use positional information?
+    collapsed = evidence_table.query('evidence > 1').groupby(['gene'])['umi'].size()
+
+    genes = pd.Series(index=set(gene_map.values()))
+    genes = genes.sort_index()
+    genes = collapsed[genes.index]
+    genes.replace(pd.np.nan, 0, inplace=True)
+
+    # TODO: Optionally output buf
+
+    genes.to_csv(args.out)
 
 
 def sam_spike_count(sam_file, cell_barcodes, gene_cell_umi_sets, gene_umi_sets, minaqual, umilen):
