@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
 import sys
-import HTSeq
 import itertools
 import collections
-import pandas
 import copy
 import re
 from re import findall
@@ -27,6 +25,7 @@ Tools for processing cell and molecular barcodes of reads in the FASTQ file.
 """
 
 def fastq_trim(args):
+    import HTSeq
     fastq_file1 = HTSeq.FastqReader(args.fastq1)
     fastq_file2 = HTSeq.FastqReader(args.fastq2)
     fastq_out = open(args.outfastq, "w")
@@ -192,6 +191,8 @@ def sam_spike_count(sam_file, cell_barcodes, gene_cell_umi_sets, gene_umi_sets, 
     return gene_cell_counts
 
 def sam_count(args):
+    import pandas
+    import HTSeq
     sam_file = HTSeq.SAM_Reader(args.sam)
     gtf_file = HTSeq.GFF_Reader(args.gtf)
 
@@ -229,6 +230,7 @@ def sam_count(args):
         gene_cell_table.to_csv(args.outcount, sep="\t")
 
 def cell_count(args):
+    import HTSeq
     fastq_file = HTSeq.FastqReader(args.fastq)
     cell_counts = collections.Counter()
     for read in fastq_file:
