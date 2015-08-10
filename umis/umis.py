@@ -27,7 +27,7 @@ def stream_fastq(file_handler):
 @click.argument('fastq2', default=None, required=False)
 @click.option('--demuxed_cb', default=None)
 def fastqtransform(transform, fastq1, fastq2, demuxed_cb):
-    ''' Transform input reads to the umicount compatible read layout using regular expressions
+    ''' Transform input reads to the tagcounts compatible read layout using regular expressions
     as defined in a transform file. Outputs new format to stdout.
     '''
     read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
@@ -152,8 +152,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional):
 
 
 @click.group()
-def umicount():
+def umis():
     pass
 
-umicount.add_command(fastqtransform)
-umicount.add_command(tagcount)
+umis.add_command(fastqtransform)
+umis.add_command(tagcount)
