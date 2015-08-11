@@ -101,6 +101,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     if cb_filter:
         with open(cb_filter) as fh:
             cb_filter = set(cb.strip() for cb in fh)
+    else:
+        cb_filter = type('universe', (object,), {'__contains__' : lambda self, other: True})()
 
     sam_file = Reader(sam)
 
@@ -114,9 +116,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
             CB = match['CB']
             MB = match['MB']
 
-            if cb_filter:
-                if CB not in cb_filter:
-                    continue
+            if CB not in cb_filter:
+                continue
 
             if gene_map:
                 target_name = gene_map[aln.rname]
