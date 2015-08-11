@@ -151,9 +151,28 @@ def tagcount(genemap, sam, out, output_evidence_table, positional):
     genes.to_csv(out)
 
 
+@click.command()
+@click.argument('fastq', type=click.File('r'))
+def cb_histogram(fastq):
+    ''' Counts the number of reads for each cellular barcode
+
+    Expects formatted fastq files.
+    '''
+    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
+
+    counter = collections.Counter()
+    for read in stream_fastq(fastq):
+        match = parser_re.search(read).groupdict()
+        counter[match['CB']] += 1
+
+    for bc, count in counter.most_common():
+        sys.stdout.write('{}\t{}\n'.format(bc, count))
+    
+
 @click.group()
 def umis():
     pass
 
 umis.add_command(fastqtransform)
 umis.add_command(tagcount)
+umis.add_command(cb_histogram)
