@@ -85,7 +85,8 @@ def fastqtransform(transform, fastq1, fastq2, demuxed_cb):
 @click.argument('out')
 @click.option('--output_evidence_table', default=None)
 @click.option('--positional', default=False)
-def tagcount(genemap, sam, out, output_evidence_table, positional):
+@click.option('--cb_filter', default=None)
+def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     ''' Count up evidence for tagged molecules
     '''
     from simplesam import Reader
@@ -96,6 +97,10 @@ def tagcount(genemap, sam, out, output_evidence_table, positional):
     if genemap:
         with open(genemap) as fh:
             gene_map = dict(p.strip().split() for p in fh)
+
+    if cb_filter:
+        with open(cb_filter) as fh:
+            cb_filter = set(cb.strip() for cb in fh)
 
     sam_file = Reader(sam)
 
@@ -108,6 +113,10 @@ def tagcount(genemap, sam, out, output_evidence_table, positional):
             match = parser_re.search(aln.qname).groupdict()
             CB = match['CB']
             MB = match['MB']
+
+            if cb_filter:
+                if CB not in cb_filter:
+                    continue
 
             if gene_map:
                 target_name = gene_map[aln.rname]
