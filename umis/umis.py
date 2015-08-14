@@ -7,6 +7,7 @@ import json
 import gzip
 import sys
 import logging
+import time
 
 import click
 
@@ -112,6 +113,7 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
         cb_filter = type('universe', (object,), {'__contains__' : lambda self, other: True})()
 
     logger.info('Tallying evidence')
+    start_tally = time.time()
 
     sam_file = Reader(sam)
 
@@ -148,6 +150,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
         # Scale evidence by number of hits
         evidence[e_tuple] += 1. / nh
 
+    tally_time = time.time() - start_tally
+    logger.info('Tally done - {:.3}s, {:,} reads/min'.format(tally_time, int(60. * i / tally_time)))
     logger.info('Collapsing evidence')
 
     buf = StringIO()
