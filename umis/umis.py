@@ -86,16 +86,16 @@ def fastqtransform(transform, fastq1, fastq2, demuxed_cb):
 
 @click.command()
 @click.argument('genemap', required=False)
-@click.argument('sam', type=click.File('r'))
+@click.argument('sam')
 @click.argument('out')
 @click.option('--output_evidence_table', default=None)
 @click.option('--positional', default=False)
 @click.option('--cb_filter', default=None)
-# 
+# @profile
 def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     ''' Count up evidence for tagged molecules
     '''
-    from simplesam import Reader
+    from pysam import AlignmentFile
     from cStringIO import StringIO
     import pandas as pd
 
@@ -112,17 +112,17 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     else:
         cb_filter = type('universe', (object,), {'__contains__' : lambda self, other: True})()
 
+    parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
+
     logger.info('Tallying evidence')
     start_tally = time.time()
 
-    sam_file = Reader(sam)
-
-    parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
-
     evidence = collections.defaultdict(int)
 
-    for i, aln in enumerate(sam_file):
-        if not aln.mapped:
+    sam_file = AlignmentFile(sam, mode='r')
+    track = sam_file.fetch(until_eof=True)
+    for i, aln in enumerate(track):
+        if aln.is_unmapped:
             continue
 
         match = parser_re.match(aln.qname)
@@ -132,19 +132,20 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
         if CB not in cb_filter:
             continue
 
+        txid = sam_file.getrname(aln.reference_id)
         if gene_map:
-            target_name = gene_map[aln.rname]
+            target_name = gene_map[txid]
         else:
-            target_name = aln.rname
+            target_name = txid
 
         if positional:
             e_tuple = (CB, target_name, aln.pos, MB)
         else:
             e_tuple = (CB, target_name, MB)
         
-        for aux_tag in aln._tags:
-            if 'NH:i:' in aux_tag:
-                nh = float(aux_tag.replace('NH:i:', ''))
+        for aux_tag in aln.tags:
+            if aux_tag[0] == 'NH':
+                nh = aux_tag[1]
                 break
 
         # Scale evidence by number of hits
@@ -153,6 +154,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     tally_time = time.time() - start_tally
     logger.info('Tally done - {:.3}s, {:,} reads/min'.format(tally_time, int(60. * i / tally_time)))
     logger.info('Collapsing evidence')
+
+    # return
 
     buf = StringIO()
     for key in evidence:
