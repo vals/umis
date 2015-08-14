@@ -6,8 +6,12 @@ import re
 import json
 import gzip
 import sys
+import logging
 
 import click
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def stream_fastq(file_handler):
@@ -86,12 +90,15 @@ def fastqtransform(transform, fastq1, fastq2, demuxed_cb):
 @click.option('--output_evidence_table', default=None)
 @click.option('--positional', default=False)
 @click.option('--cb_filter', default=None)
+# 
 def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     ''' Count up evidence for tagged molecules
     '''
     from simplesam import Reader
     from cStringIO import StringIO
     import pandas as pd
+
+    logger.info('Reading optional files')
 
     gene_map = None
     if genemap:
@@ -103,6 +110,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
             cb_filter = set(cb.strip() for cb in fh)
     else:
         cb_filter = type('universe', (object,), {'__contains__' : lambda self, other: True})()
+
+    logger.info('Tallying evidence')
 
     sam_file = Reader(sam)
 
@@ -133,6 +142,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
             nh = float(aln._tags[-1].split('NH:i:')[-1])  # Number of hits per read
             evidence[e_tuple] += 1. / nh
 
+    logger.info('Collapsing evidence')
+
     buf = StringIO()
     for key in evidence:
         line = ','.join(map(str, key)) + ',' + str(evidence[key]) + '\n'
@@ -151,6 +162,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     genes = genes.sort_index()
     genes = expanded.ix[genes.index]
     genes.replace(pd.np.nan, 0, inplace=True)
+
+    logger.info('Output results')
 
     if output_evidence_table:
         import shutil
