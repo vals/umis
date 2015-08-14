@@ -115,32 +115,38 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
 
     sam_file = Reader(sam)
 
-    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
+    parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
 
     evidence = collections.defaultdict(int)
 
     for i, aln in enumerate(sam_file):
-        if aln.mapped:
-            match = parser_re.search(aln.qname).groupdict()
-            CB = match['CB']
-            MB = match['MB']
+        if not aln.mapped:
+            continue
 
-            if CB not in cb_filter:
-                continue
+        match = parser_re.match(aln.qname)
+        CB = match.group('CB')
+        MB = match.group('MB')
 
-            if gene_map:
-                target_name = gene_map[aln.rname]
-            else:
-                target_name = aln.rname
+        if CB not in cb_filter:
+            continue
 
-            if positional:
-                e_tuple = (CB, target_name, aln.pos, MB)
-            else:
-                e_tuple = (CB, target_name, MB)
-            
-            # TODO: Parsing NH should be more robust.
-            nh = float(aln._tags[-1].split('NH:i:')[-1])  # Number of hits per read
-            evidence[e_tuple] += 1. / nh
+        if gene_map:
+            target_name = gene_map[aln.rname]
+        else:
+            target_name = aln.rname
+
+        if positional:
+            e_tuple = (CB, target_name, aln.pos, MB)
+        else:
+            e_tuple = (CB, target_name, MB)
+        
+        for aux_tag in aln._tags:
+            if 'NH:i:' in aux_tag:
+                nh = float(aux_tag.replace('NH:i:', ''))
+                break
+
+        # Scale evidence by number of hits
+        evidence[e_tuple] += 1. / nh
 
     logger.info('Collapsing evidence')
 
