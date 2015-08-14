@@ -106,6 +106,11 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
         with open(genemap) as fh:
             gene_map = dict(p.strip().split() for p in fh)
 
+    if positional:
+        tuple_template = '{0},{1},{2},{3}'
+    else:
+        tuple_template = '{0},{1},{3}'
+
     if cb_filter:
         with open(cb_filter) as fh:
             cb_filter = set(cb.strip() for cb in fh)
@@ -138,10 +143,7 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
         else:
             target_name = txid
 
-        if positional:
-            e_tuple = (CB, target_name, aln.pos, MB)
-        else:
-            e_tuple = (CB, target_name, MB)
+        e_tuple = tuple_template.format(CB, target_name, aln.pos, MB)
         
         for aux_tag in aln.tags:
             if aux_tag[0] == 'NH':
@@ -155,11 +157,9 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     logger.info('Tally done - {:.3}s, {:,} reads/min'.format(tally_time, int(60. * i / tally_time)))
     logger.info('Collapsing evidence')
 
-    # return
-
     buf = StringIO()
     for key in evidence:
-        line = ','.join(map(str, key)) + ',' + str(evidence[key]) + '\n'
+        line = '{},{}\n'.format(key, evidence[key])
         buf.write(line)
 
     buf.seek(0)
