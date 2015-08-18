@@ -6,10 +6,10 @@ def read(fname):
 
 setup(
         name='umis',
-        version='0.1.0',
+        version='0.2.0',
         description='Package for estimating UMI counts in Transcript Tag Counting data.',
         packages=find_packages(),
-        install_requires=['click', 'simplesam', 'pandas'],
+        install_requires=['click', 'pysam>=0.8.3', 'pandas'],
         entry_points = {
             'console_scripts': ['umis=umis:umis']
         },
