@@ -99,6 +99,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     from cStringIO import StringIO
     import pandas as pd
 
+    from utils import weigh_evidence
+
     logger.info('Reading optional files')
 
     gene_map = None
@@ -144,14 +146,9 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
             target_name = txid
 
         e_tuple = tuple_template.format(CB, target_name, aln.pos, MB)
-        
-        for aux_tag in aln.tags:
-            if aux_tag[0] == 'NH':
-                nh = aux_tag[1]
-                break
 
         # Scale evidence by number of hits
-        evidence[e_tuple] += 1. / nh
+        evidence[e_tuple] += weigh_evidence(aln.tags)
 
     tally_time = time.time() - start_tally
     logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * i / tally_time)))
