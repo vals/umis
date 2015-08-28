@@ -23,7 +23,7 @@ def stream_fastq(file_handler):
         next_element += line
         if i % 4 == 3:
             yield next_element
-            next_element =''
+            next_element = ''
 
 
 @click.command()
@@ -31,6 +31,7 @@ def stream_fastq(file_handler):
 @click.argument('fastq1', required=True)
 @click.argument('fastq2', default=None, required=False)
 @click.option('--demuxed_cb', default=None)
+# @profile
 def fastqtransform(transform, fastq1, fastq2, demuxed_cb):
     ''' Transform input reads to the tagcounts compatible read layout using regular expressions
     as defined in a transform file. Outputs new format to stdout.
