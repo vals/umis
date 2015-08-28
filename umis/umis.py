@@ -80,6 +80,9 @@ def fastqtransform(transform, fastq1, fastq2, demuxed_cb):
         if demuxed_cb:
             read1_dict['CB'] = demuxed_cb
 
+        # Deal with spaces in read names
+        read1_dict['name'] = read1_dict['name'].partition(' ')[0]
+
         # Output the restrutured read
         sys.stdout.write(read_template.format(**read1_dict))
 
