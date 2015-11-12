@@ -58,3 +58,10 @@ examples/CEL-Seq/transform.json \
 examples/CEL-Seq/SRP048838_1.fastq \
 examples/CEL-Seq/SRP048838_2.fastq \
 > test10.fq
+
+umis fastqtransform \
+--dual_index \
+examples/STRT-Seq/dual_index_transform.json \
+examples/STRT-Seq/dualindex_example_1.fastq \
+examples/STRT-Seq/dualindex_example_2.fastq \
+> test11.fq
