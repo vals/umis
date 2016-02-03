@@ -93,14 +93,16 @@ def fastqtransform(transform, fastq1, fastq2, demuxed_cb, dual_index):
 
 
 @click.command()
-@click.argument('genemap', required=False)
 @click.argument('sam')
 @click.argument('out')
+@click.option('--genemap', required=False, default=None)
 @click.option('--output_evidence_table', default=None)
 @click.option('--positional', default=False)
 @click.option('--cb_filter', default=None)
+@click.option('--minevidence', required=False, default=1.0, type=float)
 # @profile
-def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
+def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter,
+             minevidence):
     ''' Count up evidence for tagged molecules
     '''
     from pysam import AlignmentFile
@@ -169,16 +171,22 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
 
     buf.seek(0)
     evidence_table = pd.read_csv(buf)
-    evidence_table.columns=['cell', 'gene', 'umi', 'evidence']
-
-    # TODO: Make required amount of evidence for a tagged molecule a parameter
-    # TODO: How to use positional information?
-    collapsed = evidence_table.query('evidence > 1').groupby(['cell', 'gene'])['umi'].size()
+    evidence_query = 'evidence >= %f' % minevidence
+    if positional:
+        evidence_table.columns=['cell', 'gene', 'umi', 'pos', 'evidence']
+        collapsed = evidence_table.query(evidence_query).groupby(['cell', 'gene'])['umi', 'pos'].size()
+    else:
+        evidence_table.columns=['cell', 'gene', 'umi', 'evidence']
+        collapsed = evidence_table.query(evidence_query).groupby(['cell', 'gene'])['umi'].size()
     expanded = collapsed.unstack().T
 
-    genes = pd.Series(index=set(gene_map.values()))
-    genes = genes.sort_index()
-    genes = expanded.ix[genes.index]
+    if gene_map:
+        genes = pd.Series(index=set(gene_map.values()))
+        genes = pd.Series(index=set(expanded))
+        genes = genes.sort_index()
+        genes = expanded.ix[genes.index]
+    else:
+        genes = expanded
     genes.replace(pd.np.nan, 0, inplace=True)
 
     logger.info('Output results')
@@ -188,7 +196,6 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
         buf.seek(0)
         with open(output_evidence_table, 'w') as etab_fh:
             shutil.copyfileobj(buf, etab_fh)
-
     genes.to_csv(out)
 
 
@@ -208,7 +215,7 @@ def cb_histogram(fastq):
 
     for bc, count in counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))
-    
+
 
 @click.group()
 def umis():
