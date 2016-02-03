@@ -99,8 +99,10 @@ def fastqtransform(transform, fastq1, fastq2, demuxed_cb, dual_index):
 @click.option('--output_evidence_table', default=None)
 @click.option('--positional', default=False)
 @click.option('--cb_filter', default=None)
+@click.option('--minevidence', required=False, default=1.0, type=float)
 # @profile
-def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter):
+def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter,
+             minevidence):
     ''' Count up evidence for tagged molecules
     '''
     from pysam import AlignmentFile
@@ -171,9 +173,9 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter):
     evidence_table = pd.read_csv(buf)
     evidence_table.columns=['cell', 'gene', 'umi', 'evidence']
 
-    # TODO: Make required amount of evidence for a tagged molecule a parameter
     # TODO: How to use positional information?
-    collapsed = evidence_table.query('evidence > 1').groupby(['cell', 'gene'])['umi'].size()
+    evidence_query = 'evidence >= %f' % minevidence
+    collapsed = evidence_table.query(evidence_query).groupby(['cell', 'gene'])['umi'].size()
     expanded = collapsed.unstack().T
 
     if gene_map:
