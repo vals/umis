@@ -93,14 +93,14 @@ def fastqtransform(transform, fastq1, fastq2, demuxed_cb, dual_index):
 
 
 @click.command()
-@click.argument('genemap', required=False)
 @click.argument('sam')
 @click.argument('out')
+@click.option('--genemap', required=False, default=None)
 @click.option('--output_evidence_table', default=None)
 @click.option('--positional', default=False)
 @click.option('--cb_filter', default=None)
 # @profile
-def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
+def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter):
     ''' Count up evidence for tagged molecules
     '''
     from pysam import AlignmentFile
@@ -176,10 +176,12 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
     collapsed = evidence_table.query('evidence > 1').groupby(['cell', 'gene'])['umi'].size()
     expanded = collapsed.unstack().T
 
-    genes = pd.Series(index=set(gene_map.values()))
-    genes = genes.sort_index()
-    genes = expanded.ix[genes.index]
-    genes.replace(pd.np.nan, 0, inplace=True)
+    if gene_map:
+        genes = pd.Series(index=set(gene_map.values()))
+        genes = pd.Series(index=set(expanded))
+        genes = genes.sort_index()
+        genes = expanded.ix[genes.index]
+        genes.replace(pd.np.nan, 0, inplace=True)
 
     logger.info('Output results')
 
@@ -189,7 +191,8 @@ def tagcount(genemap, sam, out, output_evidence_table, positional, cb_filter):
         with open(output_evidence_table, 'w') as etab_fh:
             shutil.copyfileobj(buf, etab_fh)
 
-    genes.to_csv(out)
+    if gene_map:
+        genes.to_csv(out)
 
 
 @click.command()
@@ -208,7 +211,7 @@ def cb_histogram(fastq):
 
     for bc, count in counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))
-    
+
 
 @click.group()
 def umis():
