@@ -171,11 +171,13 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter,
 
     buf.seek(0)
     evidence_table = pd.read_csv(buf)
-    evidence_table.columns=['cell', 'gene', 'umi', 'evidence']
-
-    # TODO: How to use positional information?
     evidence_query = 'evidence >= %f' % minevidence
-    collapsed = evidence_table.query(evidence_query).groupby(['cell', 'gene'])['umi'].size()
+    if positional:
+        evidence_table.columns=['cell', 'gene', 'umi', 'pos', 'evidence']
+        collapsed = evidence_table.query(evidence_query).groupby(['cell', 'gene'])['umi', 'pos'].size()
+    else:
+        evidence_table.columns=['cell', 'gene', 'umi', 'evidence']
+        collapsed = evidence_table.query(evidence_query).groupby(['cell', 'gene'])['umi'].size()
     expanded = collapsed.unstack().T
 
     if gene_map:
@@ -183,7 +185,9 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter,
         genes = pd.Series(index=set(expanded))
         genes = genes.sort_index()
         genes = expanded.ix[genes.index]
-        genes.replace(pd.np.nan, 0, inplace=True)
+    else:
+        genes = expanded
+    genes.replace(pd.np.nan, 0, inplace=True)
 
     logger.info('Output results')
 
@@ -192,9 +196,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter,
         buf.seek(0)
         with open(output_evidence_table, 'w') as etab_fh:
             shutil.copyfileobj(buf, etab_fh)
-
-    if gene_map:
-        genes.to_csv(out)
+    genes.to_csv(out)
 
 
 @click.command()
