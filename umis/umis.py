@@ -2,7 +2,7 @@
 
 import itertools
 import collections
-import re
+import regex as re
 import json
 import gzip
 import sys
