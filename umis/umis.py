@@ -30,14 +30,19 @@ def stream_fastq(file_handler):
 @click.argument('transform', required=True)
 @click.argument('fastq1', required=True)
 @click.argument('fastq2', default=None, required=False)
+@click.option('--separate_cb', is_flag=True, help="Keep dual index barcodes separate.")
 @click.option('--demuxed_cb', default=None)
 @click.option('--dual_index', is_flag=True)
 # @profile
-def fastqtransform(transform, fastq1, fastq2, demuxed_cb, dual_index):
-    ''' Transform input reads to the tagcounts compatible read layout using regular expressions
-    as defined in a transform file. Outputs new format to stdout.
+def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_index):
+    ''' Transform input reads to the tagcounts compatible read layout using
+    regular expressions as defined in a transform file. Outputs new format to
+    stdout.
     '''
-    read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+    if dual_index and separate_cb:
+        read_template = '{name}:CELL_{CB1}_{CB2}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+    else:
+        read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
 
     transform = json.load(open(transform))
     read1_regex = re.compile(transform['read1'])
@@ -80,7 +85,8 @@ def fastqtransform(transform, fastq1, fastq2, demuxed_cb, dual_index):
         read1_dict.update(read2_dict)
 
         if dual_index:
-            read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
+            if not separate_cb:
+                read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
 
         if demuxed_cb:
             read1_dict['CB'] = demuxed_cb
