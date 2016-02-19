@@ -71,8 +71,8 @@ def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_inde
                           read2_regex=read2_regex, paired=fastq2)
     p = multiprocessing.Pool(cores)
 
-    chunks = tz.partition(10000, itertools.izip(fastq_file1, fastq_file2))
-    bigchunks = tz.partition(cores, chunks)
+    chunks = tz.partition_all(10000, itertools.izip(fastq_file1, fastq_file2))
+    bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(transform, list(bigchunk)):
             for read1_dict in chunk:
