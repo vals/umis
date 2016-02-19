@@ -8,6 +8,9 @@ import gzip
 import sys
 import logging
 import time
+import multiprocessing
+from functools import partial
+import toolz as tz
 
 import click
 
@@ -25,7 +28,6 @@ def stream_fastq(file_handler):
             yield next_element
             next_element = ''
 
-
 @click.command()
 @click.argument('transform', required=True)
 @click.argument('fastq1', required=True)
@@ -33,8 +35,9 @@ def stream_fastq(file_handler):
 @click.option('--separate_cb', is_flag=True, help="Keep dual index barcodes separate.")
 @click.option('--demuxed_cb', default=None)
 @click.option('--dual_index', is_flag=True)
+@click.option('--cores', default=1)
 # @profile
-def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_index):
+def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_index, cores):
     ''' Transform input reads to the tagcounts compatible read layout using
     regular expressions as defined in a transform file. Outputs new format to
     stdout.
@@ -64,15 +67,37 @@ def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_inde
     else:
         fastq_file2 = itertools.cycle((None,))
 
-    for read1, read2 in itertools.izip(fastq_file1, fastq_file2):
-        # Parse the reads with the regexes
+    transform = partial(transformer, read1_regex=read1_regex,
+                          read2_regex=read2_regex, paired=fastq2)
+    p = multiprocessing.Pool(cores)
+
+    chunks = tz.partition(10000, itertools.izip(fastq_file1, fastq_file2))
+    bigchunks = tz.partition(cores, chunks)
+    for bigchunk in bigchunks:
+        for chunk in p.map(transform, list(bigchunk)):
+            for read1_dict in chunk:
+                if dual_index:
+                    if not separate_cb:
+                        read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
+
+                if demuxed_cb:
+                    read1_dict['CB'] = demuxed_cb
+
+                # Deal with spaces in read names
+                read1_dict['name'] = read1_dict['name'].partition(' ')[0]
+                sys.stdout.write(read_template.format(**read1_dict))
+
+def transformer(chunk, read1_regex, read2_regex, paired):
+    # Parse the reads with the regexes
+    reads = []
+    for read1, read2 in chunk:
         read1_match = read1_regex.search(read1)
         if not read1_match:
             continue
 
         read1_dict = read1_match.groupdict()
 
-        if fastq2:
+        if paired:
             read2_match = read2_regex.search(read2)
             if not read2_match:
                 continue
@@ -84,19 +109,9 @@ def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_inde
 
         read1_dict.update(read2_dict)
 
-        if dual_index:
-            if not separate_cb:
-                read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
-
-        if demuxed_cb:
-            read1_dict['CB'] = demuxed_cb
-
-        # Deal with spaces in read names
-        read1_dict['name'] = read1_dict['name'].partition(' ')[0]
-
         # Output the restrutured read
-        sys.stdout.write(read_template.format(**read1_dict))
-
+        reads.append(read1_dict)
+    return reads
 
 @click.command()
 @click.argument('sam')
