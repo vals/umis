@@ -227,21 +227,10 @@ def cb_histogram(fastq):
     for bc, count in counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))
 
-@click.command()
-@click.argument('fastq', type=click.File('r'))
-@click.option('--bc1', type=click.File('r'))
-@click.option('--bc2', type=click.File('r'), required=False)
-def cb_filter(fastq, bc1, bc2):
-    ''' Filters reads with non-matching barcodes
-    Expects formatted fastq files.
-    '''
+def cb_filterer(chunk, bc1, bc2):
     parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
-
-    bc1 = set(cb.strip() for cb in bc1)
-    if bc2:
-        bc2 = set(cb.strip() for cb in bc2)
-
-    for read in stream_fastq(fastq):
+    kept = []
+    for read in chunk:
         match = parser_re.search(read).groupdict()
         cb1 = match['CB']
         if bc2:
@@ -250,7 +239,32 @@ def cb_filter(fastq, bc1, bc2):
             continue
         if bc2 and cb2 not in bc2:
             continue
-        sys.stdout.write(read)
+        kept.append(read)
+    return kept
+
+@click.command()
+@click.argument('fastq', type=click.File('r'))
+@click.option('--bc1', type=click.File('r'))
+@click.option('--bc2', type=click.File('r'), required=False)
+@click.option('--cores', default=1)
+def cb_filter(fastq, bc1, bc2, cores):
+    ''' Filters reads with non-matching barcodes
+    Expects formatted fastq files.
+    '''
+
+    bc1 = set(cb.strip() for cb in bc1)
+    if bc2:
+        bc2 = set(cb.strip() for cb in bc2)
+
+    filter_cb = partial(cb_filterer, bc1=bc1, bc2=bc2)
+    p = multiprocessing.Pool(cores)
+
+    chunks = tz.partition_all(10000, stream_fastq(fastq))
+    bigchunks = tz.partition_all(cores, chunks)
+    for bigchunk in bigchunks:
+        for chunk in p.map(filter_cb, list(bigchunk)):
+            for read in chunk:
+                sys.stdout.write(read)
 
 @click.group()
 def umis():
