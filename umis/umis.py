@@ -43,7 +43,7 @@ def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_inde
     stdout.
     '''
     if dual_index and separate_cb:
-        read_template = '{name}:CELL_{CB1}_{CB2}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+        read_template = '{name}:CELL_{CB1}-{CB2}:UMI_{MB}\n{seq}\n+\n{qual}\n'
     else:
         read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
 
@@ -119,7 +119,6 @@ def transformer(chunk, read1_regex, read2_regex, paired):
 @click.option('--genemap', required=False, default=None)
 @click.option('--output_evidence_table', default=None)
 @click.option('--positional', default=False)
-@click.option('--cb_filter', default=None)
 @click.option('--minevidence', required=False, default=1.0, type=float)
 # @profile
 def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter,
@@ -144,12 +143,6 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter,
     else:
         tuple_template = '{0},{1},{3}'
 
-    if cb_filter:
-        with open(cb_filter) as fh:
-            cb_filter = set(cb.strip() for cb in fh)
-    else:
-        cb_filter = type('universe', (object,), {'__contains__' : lambda self, other: True})()
-
     parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
 
     logger.info('Tallying evidence')
@@ -166,9 +159,6 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, cb_filter,
         match = parser_re.match(aln.qname)
         CB = match.group('CB')
         MB = match.group('MB')
-
-        if CB not in cb_filter:
-            continue
 
         txid = sam_file.getrname(aln.reference_id)
         if gene_map:
@@ -237,6 +227,30 @@ def cb_histogram(fastq):
     for bc, count in counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))
 
+@click.command()
+@click.argument('fastq', type=click.File('r'))
+@click.option('--bc1', type=click.File('r'))
+@click.option('--bc2', type=click.File('r'), required=False)
+def cb_filter(fastq, bc1, bc2):
+    ''' Filters reads with non-matching barcodes
+    Expects formatted fastq files.
+    '''
+    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
+
+    bc1 = set(cb.strip() for cb in bc1)
+    if bc2:
+        bc2 = set(cb.strip() for cb in bc2)
+
+    for read in stream_fastq(fastq):
+        match = parser_re.search(read).groupdict()
+        cb1 = match['CB']
+        if bc2:
+            cb1, cb2 = cb1.split("-")
+        if cb1 not in bc1:
+            continue
+        if bc2 and cb2 not in bc2:
+            continue
+        sys.stdout.write(read)
 
 @click.group()
 def umis():
@@ -245,3 +259,4 @@ def umis():
 umis.add_command(fastqtransform)
 umis.add_command(tagcount)
 umis.add_command(cb_histogram)
+umis.add_command(cb_filter)
