@@ -194,9 +194,10 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence):
     expanded = collapsed.unstack().T
 
     if gene_map:
+        # This Series is just for sorting the index
         genes = pd.Series(index=set(gene_map.values()))
-        genes = pd.Series(index=set(expanded))
         genes = genes.sort_index()
+        # Now genes is assigned to a DataFrame
         genes = expanded.ix[genes.index]
 
     else:
