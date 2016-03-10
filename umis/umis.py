@@ -36,8 +36,10 @@ def stream_fastq(file_handler):
 @click.option('--demuxed_cb', default=None)
 @click.option('--dual_index', is_flag=True)
 @click.option('--cores', default=1)
+@click.option('--min_length', default=1, help="Minimum length of read to keep.")
 # @profile
-def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_index, cores):
+def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb,
+                   dual_index, cores, min_length):
     ''' Transform input reads to the tagcounts compatible read layout using
     regular expressions as defined in a transform file. Outputs new format to
     stdout.
@@ -85,7 +87,8 @@ def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb, dual_inde
 
                 # Deal with spaces in read names
                 read1_dict['name'] = read1_dict['name'].partition(' ')[0]
-                sys.stdout.write(read_template.format(**read1_dict))
+                if len(read1_dict['seq']) >= min_length:
+                    sys.stdout.write(read_template.format(**read1_dict))
 
 def transformer(chunk, read1_regex, read2_regex, paired):
     # Parse the reads with the regexes
