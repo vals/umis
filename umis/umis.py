@@ -165,7 +165,8 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
     evidence = collections.defaultdict(int)
 
-    sam_file = AlignmentFile(sam, mode='r')
+    sam_mode = 'r' if sam.endswith(".sam") else 'rb'
+    sam_file = AlignmentFile(sam, mode=sam_mode)
     track = sam_file.fetch(until_eof=True)
     count = 0
     kept = 0
