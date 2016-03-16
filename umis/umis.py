@@ -125,9 +125,11 @@ def transformer(chunk, read1_regex, read2_regex, paired):
 @click.option('--minevidence', required=False, default=1.0, type=float)
 @click.option('--cb_histogram', default=None)
 @click.option('--cb_cutoff', default=0)
+@click.option('--cb_cutoff', default=0)
+@click.option('--no_scale_evidence', default=False, is_flag=True)
 # @profile
 def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
-             cb_histogram, cb_cutoff):
+             cb_histogram, cb_cutoff, no_scale_evidence):
     ''' Count up evidence for tagged molecules
     '''
     from pysam import AlignmentFile
@@ -191,7 +193,10 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         e_tuple = tuple_template.format(CB, target_name, aln.pos, MB)
 
         # Scale evidence by number of hits
-        evidence[e_tuple] += weigh_evidence(aln.tags)
+        if no_scale_evidence:
+            evidence[e_tuple] += 1.0
+        else:
+            evidence[e_tuple] += weigh_evidence(aln.tags)
         kept += 1
 
     tally_time = time.time() - start_tally
