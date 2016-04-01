@@ -262,6 +262,23 @@ def cb_histogram(fastq):
     for bc, count in counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))
 
+@click.command()
+@click.argument('fastq', type=click.File('r'))
+def umi_histogram(fastq):
+    ''' Counts the number of reads for each UMI
+
+    Expects formatted fastq files.
+    '''
+    parser_re = re.compile('(.*):CELL_(.*):UMI_(?P<UMI>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+
+    counter = collections.Counter()
+    for read in stream_fastq(fastq):
+        match = parser_re.search(read).groupdict()
+        counter[match['UMI']] += 1
+
+    for bc, count in counter.most_common():
+        sys.stdout.write('{}\t{}\n'.format(bc, count))
+
 def cb_filterer(chunk, bc1, bc2):
     parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
     kept = []
@@ -276,6 +293,22 @@ def cb_filterer(chunk, bc1, bc2):
             continue
         kept.append(read)
     return kept
+@click.command()
+@click.argument('fastq', type=click.File('r'))
+def cb_histogram(fastq):
+    ''' Counts the number of reads for each cellular barcode
+
+    Expects formatted fastq files.
+    '''
+    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
+
+    counter = collections.Counter()
+    for read in stream_fastq(fastq):
+        match = parser_re.search(read).groupdict()
+        counter[match['CB']] += 1
+
+    for bc, count in counter.most_common():
+        sys.stdout.write('{}\t{}\n'.format(bc, count))
 
 @click.command()
 @click.argument('fastq', type=click.File('r'))
@@ -308,4 +341,5 @@ def umis():
 umis.add_command(fastqtransform)
 umis.add_command(tagcount)
 umis.add_command(cb_histogram)
+umis.add_command(umi_histogram)
 umis.add_command(cb_filter)
