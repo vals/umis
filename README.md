@@ -1,5 +1,8 @@
 # umis
 
+**Note: This tool works on heuristic counting. For more principled UMI quantification, see [Kallisto](https://github.com/pachterlab/kallisto).**
+Some scripts of `umis` might still be useful for pre-processing and investigating UMI data. In particular the regex based UMI extraction.
+
 **umis** provides tools for estimating expression in RNA-Seq data which performs
 sequencing of end tags of trancsript, and incorporate molecular tags to
 correct for amplification bias.
