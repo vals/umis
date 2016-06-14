@@ -1,0 +1,4 @@
+{
+    "read1": "(?P<name>@.*) .*UMI:(?P<MB>.{5,6}):.*\\n(?P<seq>.*)\\n\\+\\n(?P<qual>.*)\\n",
+    "read2": null
+}
