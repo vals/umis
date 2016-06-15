@@ -32,13 +32,14 @@ def stream_fastq(file_handler):
 @click.argument('transform', required=True)
 @click.argument('fastq1', required=True)
 @click.argument('fastq2', default=None, required=False)
+@click.argument('fastq3', default=None, required=False)
 @click.option('--separate_cb', is_flag=True, help="Keep dual index barcodes separate.")
 @click.option('--demuxed_cb', default=None)
 @click.option('--dual_index', is_flag=True)
 @click.option('--cores', default=1)
 @click.option('--min_length', default=1, help="Minimum length of read to keep.")
 # @profile
-def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb,
+def fastqtransform(transform, fastq1, fastq2, fastq3, separate_cb, demuxed_cb,
                    dual_index, cores, min_length):
     ''' Transform input reads to the tagcounts compatible read layout using
     regular expressions as defined in a transform file. Outputs new format to
@@ -52,6 +53,7 @@ def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb,
     transform = json.load(open(transform))
     read1_regex = re.compile(transform['read1'])
     read2_regex = re.compile(transform['read2']) if fastq2 else None
+    read3_regex = re.compile(transform['read3']) if fastq3 else None
 
     fastq1_fh = open(fastq1)
     if fastq1.endswith('gz'):
@@ -69,11 +71,27 @@ def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb,
     else:
         fastq_file2 = itertools.cycle((None,))
 
+    if fastq3:
+        fastq3_fh = open(fastq3)
+        if fastq3.endswith('gz'):
+            fastq3_fh = gzip.GzipFile(fileobj=fastq3_fh)
+
+        fastq_file3 = stream_fastq(fastq3_fh)
+
+    else:
+        fastq_file3 = itertools.cycle((None,))
+
     transform = partial(transformer, read1_regex=read1_regex,
-                          read2_regex=read2_regex, paired=fastq2)
+                                     read2_regex=read2_regex,
+                                     read3_regex=read3_regex)
     p = multiprocessing.Pool(cores)
 
-    chunks = tz.partition_all(10000, itertools.izip(fastq_file1, fastq_file2))
+    try :
+        zzip = itertools.izip
+    except AttributeError:
+        zzip = zip
+
+    chunks = tz.partition_all(10000, zzip(fastq_file1, fastq_file2, fastq_file3))
     bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(transform, list(bigchunk)):
@@ -90,17 +108,17 @@ def fastqtransform(transform, fastq1, fastq2, separate_cb, demuxed_cb,
                 if len(read1_dict['seq']) >= min_length:
                     sys.stdout.write(read_template.format(**read1_dict))
 
-def transformer(chunk, read1_regex, read2_regex, paired):
+def transformer(chunk, read1_regex, read2_regex, read3_regex):
     # Parse the reads with the regexes
     reads = []
-    for read1, read2 in chunk:
+    for read1, read2, read3 in chunk:
         read1_match = read1_regex.search(read1)
         if not read1_match:
             continue
 
         read1_dict = read1_match.groupdict()
 
-        if paired:
+        if read2_regex:
             read2_match = read2_regex.search(read2)
             if not read2_match:
                 continue
@@ -110,10 +128,22 @@ def transformer(chunk, read1_regex, read2_regex, paired):
         else:
             read2_dict = dict()
 
+        if read3_regex:
+            read3_match = read3_regex.search(read3)
+            if not read3_match:
+                continue
+
+            read3_dict = read3_match.groupdict()
+
+        else:
+            read3_dict = dict()
+
         read1_dict.update(read2_dict)
+        read1_dict.update(read3_dict)
 
         # Output the restrutured read
         reads.append(read1_dict)
+
     return reads
 
 @click.command()
