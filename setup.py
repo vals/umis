@@ -8,14 +8,14 @@ def read(fname):
 
 setup(
         name='umis',
-        version='0.2.1',
+        version='0.2.2',
         description='Package for estimating UMI counts in Transcript Tag Counting data.',
         packages=find_packages(),
         install_requires=['click', 'pysam>=0.8.3', 'pandas', 'regex'],
         ext_modules=[ext],
         setup_requires=['cython'],
         entry_points = {
-            'console_scripts': ['umis=umis:umis']
+            'console_scripts': ['umis=umis.umis:umis']
         },
         url='https://github.com/vals/umis',
         author='Valentine Svensson',
