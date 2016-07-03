@@ -186,15 +186,8 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         with open(cb_histogram) as fh:
             cb_map = dict(p.strip().split() for p in fh)
             cb_set = set([k for k, v in cb_map.items() if int(v) > cb_cutoff])
-            if not cb_set:
-                logger.info("A cutoff of %d leaves no barcodes in %s, taking the "
-                             "top 100 barcodes intead." %(cb_cutoff, sam))
-                cb_set = sorted([(k, v) for k, v in cb_map.items()],
-                                key=lambda x: x[1], reverse=True)
-                cb_set = set([k[0] for k in cb_set[0:100]])
-            else:
-                logger.info('Keeping %d out of %d cellular barcodes.'
-                            % (len(cb_set), len(cb_map)))
+            logger.info('Keeping %d out of %d cellular barcodes.'
+                        % (len(cb_map), len(cb_set)))
 
     parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
 
