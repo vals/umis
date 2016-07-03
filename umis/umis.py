@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import itertools
 import collections
 import regex as re
@@ -356,6 +357,33 @@ def cb_filter(fastq, bc1, bc2, cores):
             for read in chunk:
                 sys.stdout.write(read)
 
+@click.command()
+@click.argument('fastq', required=True)
+@click.option('--out_dir', default=".")
+def kallisto(fastq, out_dir):
+    ''' Convert fastqtransformed file to output format compatible with
+    kallisto.
+    '''
+    parser_re = re.compile('(.*):CELL_(?<CB>.*):UMI_(?P<UMI>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    fastq_fh = open(fastq)
+    if fastq.endswith('gz'):
+        fastq_fh = gzip.GzipFile(fileobj=fastq_fh)
+    cb_set = set()
+    for read in stream_fastq(fastq_fh):
+        match = parser_re.search(read).groupdict()
+        umi = match['UMI']
+        cb = match['CB']
+        cb_set.add(cb)
+        with open(os.path.join(out_dir, cb + ".fq"), "a") as out_handle:
+            out_handle.write(read)
+        with open(os.path.join(out_dir, cb + ".umi"), "a") as out_handle:
+            out_handle.write(umi + "\n")
+    with open(os.path.join(out_dir, "barcodes.batch"), "w") as out_handle:
+        out_handle.write("#id umi-file file-1\n")
+        batchformat = "{cb} {cb}.umi {cb}.fq\n"
+        for cb in cb_set:
+            out_handle.write(batchformat.format(**locals()))
+
 @click.group()
 def umis():
     pass
@@ -365,3 +393,4 @@ umis.add_command(tagcount)
 umis.add_command(cb_histogram)
 umis.add_command(umi_histogram)
 umis.add_command(cb_filter)
+umis.add_command(kallisto)
