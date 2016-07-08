@@ -325,6 +325,30 @@ def cb_filterer(chunk, bc1, bc2):
     return kept
 
 
+def guess_depth_cutoff(cb_histogram):
+    ''' Guesses at an appropriate barcode cutoff
+    '''
+    with open(cb_histogram) as fh:
+        cb_vals = [int(p.strip().split()[1]) for p in fh]
+    histo = np.histogram(np.log10(cb_vals), bins=50)
+    vals = histo[0]
+    edges = histo[1]
+    mids = np.array([(edges[i] + edges[i+1])/2 for i in range(edges.size - 1)])
+    wdensity = vals * (10**mids) / sum(vals * (10**mids))
+    baseline = np.median(wdensity)
+    wdensity = list(wdensity)
+    # find highest density in upper half of barcode distribution
+    peak = wdensity.index(max(wdensity[len(wdensity)/2:]))
+    cutoff = None
+    for index, dens in reversed(list(enumerate(wdensity[1:peak]))):
+        if dens < 2 * baseline:
+            cutoff = index
+            break
+    if not cutoff:
+        return None
+    else:
+        return 10**mids[cutoff]
+
 @click.command()
 @click.argument('fastq', type=click.File('r'))
 @click.option('--bc1', type=click.File('r'))
