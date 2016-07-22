@@ -231,7 +231,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         kept += 1
 
     tally_time = time.time() - start_tally
-    logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * i / tally_time)))
+    logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * count / tally_time)))
     logger.info('Collapsing evidence')
 
     buf = StringIO()
