@@ -55,16 +55,19 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, separate_cb, demuxed_cb,
     read2_regex = re.compile(transform['read2']) if fastq2 else None
     read3_regex = re.compile(transform['read3']) if fastq3 else None
 
-    fastq1_fh = open(fastq1)
     if fastq1.endswith('gz'):
-        fastq1_fh = gzip.GzipFile(fileobj=fastq1_fh)
+        fastq1_fh = gzip.open(fastq1, mode='rt')
+    else:
+        fastq1_fh = open(fastq1)
+
 
     fastq_file1 = stream_fastq(fastq1_fh)
 
     if fastq2:
-        fastq2_fh = open(fastq2)
         if fastq2.endswith('gz'):
-            fastq2_fh = gzip.GzipFile(fileobj=fastq2_fh)
+            fastq2_fh = gzip.open(fastq2, mode='rt')
+        else:
+            fastq2_fh = open(fastq2)
 
         fastq_file2 = stream_fastq(fastq2_fh)
 
@@ -72,9 +75,10 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, separate_cb, demuxed_cb,
         fastq_file2 = itertools.cycle((None,))
 
     if fastq3:
-        fastq3_fh = open(fastq3)
         if fastq3.endswith('gz'):
-            fastq3_fh = gzip.GzipFile(fileobj=fastq3_fh)
+            fastq3_fh = gzip.open(fastq3, mode='rt')
+        else:
+            fastq3_fh = open(fastq3)
 
         fastq_file3 = stream_fastq(fastq3_fh)
 
