@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import itertools
 import collections
 import regex as re
@@ -159,7 +160,6 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex):
 @click.option('--minevidence', required=False, default=1.0, type=float)
 @click.option('--cb_histogram', default=None)
 @click.option('--cb_cutoff', default=0)
-@click.option('--cb_cutoff', default=0)
 @click.option('--no_scale_evidence', default=False, is_flag=True)
 # @profile
 def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
@@ -184,13 +184,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     else:
         tuple_template = '{0},{1},{3}'
 
-    cb_set = set()
-    if cb_histogram:
-        with open(cb_histogram) as fh:
-            cb_map = dict(p.strip().split() for p in fh)
-            cb_set = set([k for k, v in cb_map.items() if int(v) > cb_cutoff])
-            logger.info('Keeping %d out of %d cellular barcodes.'
-                        % (len(cb_map), len(cb_set)))
+    cb_set = get_cb_depth_set(cb_histogram, cb_cutoff)
 
     parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
 
@@ -328,6 +322,19 @@ def cb_filterer(chunk, bc1, bc2):
         kept.append(read)
     return kept
 
+def get_cb_depth_set(cb_histogram, cb_cutoff):
+    ''' Returns a set of barcodes with a minimum number of reads
+    '''
+    cb_keep_set = set()
+    if not cb_histogram:
+        return cb_keep_set
+
+    with open(cb_histogram) as fh:
+        cb_map = dict(p.strip().split() for p in fh)
+        cb_keep_set = set([k for k, v in cb_map.items() if int(v) > cb_cutoff])
+        logger.info('Keeping %d out of %d cellular barcodes.'
+                    % (len(cb_keep_set), len(cb_map)))
+    return cb_keep_set
 
 @click.command()
 @click.argument('fastq', type=click.File('r'))
@@ -353,6 +360,44 @@ def cb_filter(fastq, bc1, bc2, cores):
             for read in chunk:
                 sys.stdout.write(read)
 
+@click.command()
+@click.argument('fastq', required=True)
+@click.option('--out_dir', default=".")
+@click.option('--cb_histogram', default=None)
+@click.option('--cb_cutoff', default=0)
+def kallisto(fastq, out_dir, cb_histogram, cb_cutoff):
+    ''' Convert fastqtransformed file to output format compatible with
+    kallisto.
+    '''
+    parser_re = re.compile('(.*):CELL_(?<CB>.*):UMI_(?P<UMI>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    if fastq.endswith('gz'):
+        fastq_fh = gzip.GzipFile(fileobj=open(fastq))
+    elif fastq == "-":
+        fastq_fh = sys.stdin
+    else:
+        fastq_fh = open(fastq)
+
+    cb_depth_set = get_cb_depth_set(cb_histogram, cb_cutoff)
+
+    cb_set = set()
+    for read in stream_fastq(fastq_fh):
+        match = parser_re.search(read).groupdict()
+        umi = match['UMI']
+        cb = match['CB']
+        if cb_depth_set and cb not in cb_depth_set:
+            continue
+
+        cb_set.add(cb)
+        with open(os.path.join(out_dir, cb + ".fq"), "a") as out_handle:
+            out_handle.write(read)
+        with open(os.path.join(out_dir, cb + ".umi"), "a") as out_handle:
+            out_handle.write(umi + "\n")
+    with open(os.path.join(out_dir, "barcodes.batch"), "w") as out_handle:
+        out_handle.write("#id umi-file file-1\n")
+        batchformat = "{cb} {cb}.umi {cb}.fq\n"
+        for cb in cb_set:
+            out_handle.write(batchformat.format(**locals()))
+
 @click.group()
 def umis():
     pass
@@ -362,3 +407,4 @@ umis.add_command(tagcount)
 umis.add_command(cb_histogram)
 umis.add_command(umi_histogram)
 umis.add_command(cb_filter)
+umis.add_command(kallisto)
