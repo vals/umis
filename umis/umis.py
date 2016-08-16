@@ -233,7 +233,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         kept += 1
 
     tally_time = time.time() - start_tally
-    logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * i / tally_time)))
+    logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * count / tally_time)))
     logger.info('Collapsing evidence')
 
     buf = StringIO()
@@ -339,6 +339,30 @@ def get_cb_depth_set(cb_histogram, cb_cutoff):
         logger.info('Keeping %d out of %d cellular barcodes.'
                     % (len(cb_keep_set), len(cb_map)))
     return cb_keep_set
+
+def guess_depth_cutoff(cb_histogram):
+    ''' Guesses at an appropriate barcode cutoff
+    '''
+    with open(cb_histogram) as fh:
+        cb_vals = [int(p.strip().split()[1]) for p in fh]
+    histo = np.histogram(np.log10(cb_vals), bins=50)
+    vals = histo[0]
+    edges = histo[1]
+    mids = np.array([(edges[i] + edges[i+1])/2 for i in range(edges.size - 1)])
+    wdensity = vals * (10**mids) / sum(vals * (10**mids))
+    baseline = np.median(wdensity)
+    wdensity = list(wdensity)
+    # find highest density in upper half of barcode distribution
+    peak = wdensity.index(max(wdensity[len(wdensity)/2:]))
+    cutoff = None
+    for index, dens in reversed(list(enumerate(wdensity[1:peak]))):
+        if dens < 2 * baseline:
+            cutoff = index
+            break
+    if not cutoff:
+        return None
+    else:
+        return 10**mids[cutoff]
 
 @click.command()
 @click.argument('fastq', type=click.File('r'))
