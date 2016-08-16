@@ -177,7 +177,11 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     gene_map = None
     if genemap:
         with open(genemap) as fh:
-            gene_map = dict(p.strip().split() for p in fh)
+            try:
+                gene_map = dict(p.strip().split() for p in fh)
+            except ValueError:
+                logger.error('Incorrectly formatted gene_map, need to be tsv.')
+                sys.exit()
 
     if positional:
         tuple_template = '{0},{1},{2},{3}'
