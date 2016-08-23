@@ -192,7 +192,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
     cb_hist = None
     if cb_histogram:
-        cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, index_col=0, squeeze=True)
+        cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, squeeze=True)
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
         logger.info('Keeping {} out of {} cellular barcodes.'.format(total_num_cbs, cb_hist.shape[0]))
@@ -216,7 +216,6 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     current_read = 'none_observed_yet'
     count_this_read = True
     for i, aln in enumerate(track):
-        import ipdb; ipdb.set_trace()
         count += 1
         if not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
@@ -229,7 +228,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         # Subsampling logic
         if subsample and aln.qname != current_read:
             # This read is new, determine whether to sample it
-            count_this_read = pd.np.random.random() < subsample / cb_map[CB]
+            count_this_read = pd.np.random.random() < subsample / cb_hist[CB]
             current_read = aln.qname
 
         if not count_this_read:
@@ -293,6 +292,9 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     genes.replace(pd.np.nan, 0, inplace=True)
 
     logger.info('Output results')
+
+    if subsample:
+        cb_hist_sampled.to_csv('ss_{}_'.format(subsample) + cb_histogram, sep='\t')
 
     if output_evidence_table:
         import shutil
@@ -415,4 +417,51 @@ def cb_filter(fastq, bc1, bc2, cores):
                 sys.stdout.write(read)
 
 
+@click.command()
+@click.argument('fastq', required=True)
+@click.option('--out_dir', default=".")
+@click.option('--cb_histogram', default=None)
+@click.option('--cb_cutoff', default=0)
+def kallisto(fastq, out_dir, cb_histogram, cb_cutoff):
+    ''' Convert fastqtransformed file to output format compatible with
+    kallisto.
+    '''
+    parser_re = re.compile('(.*):CELL_(?<CB>.*):UMI_(?P<UMI>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    if fastq.endswith('gz'):
+        fastq_fh = gzip.GzipFile(fileobj=open(fastq))
+    elif fastq == "-":
+        fastq_fh = sys.stdin
+    else:
+        fastq_fh = open(fastq)
+
+    cb_depth_set = get_cb_depth_set(cb_histogram, cb_cutoff)
+
+    cb_set = set()
+    for read in stream_fastq(fastq_fh):
+        match = parser_re.search(read).groupdict()
+        umi = match['UMI']
+        cb = match['CB']
+        if cb_depth_set and cb not in cb_depth_set:
+            continue
+
+        cb_set.add(cb)
+        with open(os.path.join(out_dir, cb + ".fq"), "a") as out_handle:
+            out_handle.write(read)
+        with open(os.path.join(out_dir, cb + ".umi"), "a") as out_handle:
+            out_handle.write(umi + "\n")
+    with open(os.path.join(out_dir, "barcodes.batch"), "w") as out_handle:
+        out_handle.write("#id umi-file file-1\n")
+        batchformat = "{cb} {cb}.umi {cb}.fq\n"
+        for cb in cb_set:
+            out_handle.write(batchformat.format(**locals()))
+
+@click.group()
+def umis():
+    pass
+
+umis.add_command(fastqtransform)
+umis.add_command(tagcount)
+umis.add_command(cb_histogram)
+umis.add_command(umi_histogram)
+umis.add_command(cb_filter)
 umis.add_command(kallisto)
