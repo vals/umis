@@ -191,11 +191,13 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         tuple_template = '{0},{1},{3}'
 
     cb_hist = None
+    filter_cb = False
     if cb_histogram:
         cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, squeeze=True)
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
         logger.info('Keeping {} out of {} cellular barcodes.'.format(total_num_cbs, cb_hist.shape[0]))
+        filter_cb = True
 
     if subsample:
         cb_hist_sampled = 0 * cb_hist
@@ -222,8 +224,9 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
         match = parser_re.match(aln.qname)
         CB = match.group('CB')
-        if cb_hist and CB not in cb_hist.index:
-            continue
+        if filter_cb:
+            if CB not in cb_hist.index:
+                continue
 
         # Subsampling logic
         if subsample and aln.qname != current_read:
