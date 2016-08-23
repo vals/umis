@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import itertools
 import collections
 import regex as re
@@ -55,16 +56,19 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, separate_cb, demuxed_cb,
     read2_regex = re.compile(transform['read2']) if fastq2 else None
     read3_regex = re.compile(transform['read3']) if fastq3 else None
 
-    fastq1_fh = open(fastq1)
     if fastq1.endswith('gz'):
-        fastq1_fh = gzip.GzipFile(fileobj=fastq1_fh)
+        fastq1_fh = gzip.open(fastq1, mode='rt')
+    else:
+        fastq1_fh = open(fastq1)
+
 
     fastq_file1 = stream_fastq(fastq1_fh)
 
     if fastq2:
-        fastq2_fh = open(fastq2)
         if fastq2.endswith('gz'):
-            fastq2_fh = gzip.GzipFile(fileobj=fastq2_fh)
+            fastq2_fh = gzip.open(fastq2, mode='rt')
+        else:
+            fastq2_fh = open(fastq2)
 
         fastq_file2 = stream_fastq(fastq2_fh)
 
@@ -72,9 +76,10 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, separate_cb, demuxed_cb,
         fastq_file2 = itertools.cycle((None,))
 
     if fastq3:
-        fastq3_fh = open(fastq3)
         if fastq3.endswith('gz'):
-            fastq3_fh = gzip.GzipFile(fileobj=fastq3_fh)
+            fastq3_fh = gzip.open(fastq3, mode='rt')
+        else:
+            fastq3_fh = open(fastq3)
 
         fastq_file3 = stream_fastq(fastq3_fh)
 
@@ -174,7 +179,11 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     gene_map = None
     if genemap:
         with open(genemap) as fh:
-            gene_map = dict(p.strip().split() for p in fh)
+            try:
+                gene_map = dict(p.strip().split() for p in fh)
+            except ValueError:
+                logger.error('Incorrectly formatted gene_map, need to be tsv.')
+                sys.exit()
 
     if positional:
         tuple_template = '{0},{1},{2},{3}'
@@ -250,7 +259,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         kept += 1
 
     tally_time = time.time() - start_tally
-    logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * i / tally_time)))
+    logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * count / tally_time)))
     logger.info('Collapsing evidence')
 
     buf = StringIO()
@@ -343,6 +352,43 @@ def cb_filterer(chunk, bc1, bc2):
         kept.append(read)
     return kept
 
+def get_cb_depth_set(cb_histogram, cb_cutoff):
+    ''' Returns a set of barcodes with a minimum number of reads
+    '''
+    cb_keep_set = set()
+    if not cb_histogram:
+        return cb_keep_set
+
+    with open(cb_histogram) as fh:
+        cb_map = dict(p.strip().split() for p in fh)
+        cb_keep_set = set([k for k, v in cb_map.items() if int(v) > cb_cutoff])
+        logger.info('Keeping %d out of %d cellular barcodes.'
+                    % (len(cb_keep_set), len(cb_map)))
+    return cb_keep_set
+
+def guess_depth_cutoff(cb_histogram):
+    ''' Guesses at an appropriate barcode cutoff
+    '''
+    with open(cb_histogram) as fh:
+        cb_vals = [int(p.strip().split()[1]) for p in fh]
+    histo = np.histogram(np.log10(cb_vals), bins=50)
+    vals = histo[0]
+    edges = histo[1]
+    mids = np.array([(edges[i] + edges[i+1])/2 for i in range(edges.size - 1)])
+    wdensity = vals * (10**mids) / sum(vals * (10**mids))
+    baseline = np.median(wdensity)
+    wdensity = list(wdensity)
+    # find highest density in upper half of barcode distribution
+    peak = wdensity.index(max(wdensity[len(wdensity)/2:]))
+    cutoff = None
+    for index, dens in reversed(list(enumerate(wdensity[1:peak]))):
+        if dens < 2 * baseline:
+            cutoff = index
+            break
+    if not cutoff:
+        return None
+    else:
+        return 10**mids[cutoff]
 
 @click.command()
 @click.argument('fastq', type=click.File('r'))
@@ -368,12 +414,5 @@ def cb_filter(fastq, bc1, bc2, cores):
             for read in chunk:
                 sys.stdout.write(read)
 
-@click.group()
-def umis():
-    pass
 
-umis.add_command(fastqtransform)
-umis.add_command(tagcount)
-umis.add_command(cb_histogram)
-umis.add_command(umi_histogram)
-umis.add_command(cb_filter)
+umis.add_command(kallisto)
