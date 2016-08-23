@@ -155,15 +155,16 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex):
 @click.option('--minevidence', required=False, default=1.0, type=float)
 @click.option('--cb_histogram', default=None)
 @click.option('--cb_cutoff', default=0)
-@click.option('--cb_cutoff', default=0)
 @click.option('--no_scale_evidence', default=False, is_flag=True)
+@click.option('--subsample', required=False, default=None, type=int)
 # @profile
 def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
-             cb_histogram, cb_cutoff, no_scale_evidence):
+             cb_histogram, cb_cutoff, no_scale_evidence, subsample):
     ''' Count up evidence for tagged molecules
     '''
     from pysam import AlignmentFile
-    from cStringIO import StringIO
+
+    from io import StringIO
     import pandas as pd
 
     from utils import weigh_evidence
@@ -180,38 +181,56 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     else:
         tuple_template = '{0},{1},{3}'
 
-    cb_set = set()
+    cb_hist = None
     if cb_histogram:
-        with open(cb_histogram) as fh:
-            cb_map = dict(p.strip().split() for p in fh)
-            cb_set = set([k for k, v in cb_map.items() if int(v) > cb_cutoff])
-            logger.info('Keeping %d out of %d cellular barcodes.'
-                        % (len(cb_map), len(cb_set)))
+        cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, index_col=0, squeeze=True)
+        total_num_cbs = cb_hist.shape[0]
+        cb_hist = cb_hist[cb_hist > cb_cutoff]
+        logger.info('Keeping {} out of {} cellular barcodes.'.format(total_num_cbs, cb_hist.shape[0]))
+
+    if subsample:
+        cb_hist_sampled = 0 * cb_hist
 
     parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
 
+    evidence = collections.defaultdict(int)
+    sampled_cb_hist = collections.defaultdict(int)
+
     logger.info('Tallying evidence')
     start_tally = time.time()
-
-    evidence = collections.defaultdict(int)
 
     sam_mode = 'r' if sam.endswith(".sam") else 'rb'
     sam_file = AlignmentFile(sam, mode=sam_mode)
     track = sam_file.fetch(until_eof=True)
     count = 0
     kept = 0
+    current_read = 'none_observed_yet'
+    count_this_read = True
     for i, aln in enumerate(track):
+        import ipdb; ipdb.set_trace()
         count += 1
         if not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
 
+        match = parser_re.match(aln.qname)
+        CB = match.group('CB')
+        if cb_hist and CB not in cb_hist.index:
+            continue
+
+        # Subsampling logic
+        if subsample and aln.qname != current_read:
+            # This read is new, determine whether to sample it
+            count_this_read = pd.np.random.random() < subsample / cb_map[CB]
+            current_read = aln.qname
+
+        if not count_this_read:
+            continue
+
+        cb_hist_sampled[CB] += 1
+
         if aln.is_unmapped:
             continue
 
-        match = parser_re.match(aln.qname)
-        CB = match.group('CB')
-        if cb_set and CB not in cb_set:
-            continue
         MB = match.group('MB')
 
         txid = sam_file.getrname(aln.reference_id)
