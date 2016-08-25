@@ -199,13 +199,46 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         logger.info('Keeping {} out of {} cellular barcodes.'.format(total_num_cbs, cb_hist.shape[0]))
         filter_cb = True
 
-    if subsample:
-        cb_hist_sampled = 0 * cb_hist
-
     parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
 
+    if subsample:
+        logger.info('Creating reservoir of subsampled reads ({} per cell)'.format(subsample))
+        start_sampling  = time.time()
+
+        reservoir = collections.defaultdict(list)
+        cb_hist_sampled = 0 * cb_hist
+        cb_obs = 0 * cb_hist
+
+        sam_mode = 'r' if sam.endswith(".sam") else 'rb'
+        sam_file = AlignmentFile(sam, mode=sam_mode)
+        track = sam_file.fetch(until_eof=True)
+        current_read = 'none_observed_yet'
+        for i, aln in enumerate(track):
+            if aln.qname == current_read:
+                continue
+
+            current_read = aln.qname
+            match = parser_re.match(aln.qname)
+            CB = match.group('CB')
+
+            if CB not in cb_hist.index:
+                continue
+
+            cb_obs[CB] += 1
+            if len(reservoir[CB]) < subsample:
+                reservoir[CB].append(i)
+                cb_hist_sampled[CB] += 1
+            else:
+                s = pd.np.random.randint(0, cb_obs[CB])
+                if s < subsample:
+                    reservoir[CB][s] = i
+
+        index_filter = set(itertools.chain.from_iterable(reservoir.values()))
+        sam_file.close()
+        sampling_time = time.time() - start_sampling
+        logger.info('Sampling done - {:.3}s'.format(sampling_time))
+
     evidence = collections.defaultdict(int)
-    sampled_cb_hist = collections.defaultdict(int)
 
     logger.info('Tallying evidence')
     start_tally = time.time()
@@ -222,25 +255,25 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         if not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
 
+        if aln.is_unmapped:
+            continue
+
+        if aln.qname != current_read:
+            current_read = aln.qname
+            if subsample and i not in index_filter:
+                count_this_read = False
+                continue
+            else:
+                count_this_read = True
+        else:
+            if not count_this_read:
+                continue
+
         match = parser_re.match(aln.qname)
         CB = match.group('CB')
         if filter_cb:
             if CB not in cb_hist.index:
                 continue
-
-        # Subsampling logic
-        if subsample and aln.qname != current_read:
-            # This read is new, determine whether to sample it
-            count_this_read = pd.np.random.random() < subsample / cb_hist[CB]
-            current_read = aln.qname
-
-        if not count_this_read:
-            continue
-
-        cb_hist_sampled[CB] += 1
-
-        if aln.is_unmapped:
-            continue
 
         MB = match.group('MB')
 
