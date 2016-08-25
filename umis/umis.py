@@ -297,7 +297,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     logger.info('Output results')
 
     if subsample:
-        cb_hist_sampled.to_csv('ss_{}_'.format(subsample) + cb_histogram, sep='\t')
+        cb_hist_sampled.to_csv('ss_{}_'.format(subsample) + os.path.basename(cb_histogram), sep='\t')
 
     if output_evidence_table:
         import shutil
