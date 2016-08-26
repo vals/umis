@@ -48,9 +48,6 @@ class MutationHash(object):
         self.hash = mutationhash(strings, nedit)
 
     def __getitem__(self, barcode):
-        """
-        look up a barcode, returning the most commonly seen barcode
-        """
         result = self.hash[barcode]
         if len(result) != 1:
             return None
