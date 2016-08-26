@@ -12,6 +12,8 @@ import time
 import multiprocessing
 from functools import partial
 import toolz as tz
+from barcodes import (exact_barcode_filter, correcting_barcode_filter,
+                      MutationHash)
 
 import click
 
@@ -340,7 +342,6 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
     genes.to_csv(out)
 
-
 @click.command()
 @click.argument('fastq', type=click.File('r'))
 def cb_histogram(fastq):
@@ -433,7 +434,8 @@ def guess_depth_cutoff(cb_histogram):
 @click.option('--bc1', type=click.File('r'))
 @click.option('--bc2', type=click.File('r'), required=False)
 @click.option('--cores', default=1)
-def cb_filter(fastq, bc1, bc2, cores):
+@click.option('--nedit', default=0)
+def cb_filter(fastq, bc1, bc2, cores, nedit):
     ''' Filters reads with non-matching barcodes
     Expects formatted fastq files.
     '''
@@ -442,7 +444,15 @@ def cb_filter(fastq, bc1, bc2, cores):
     if bc2:
         bc2 = set(cb.strip() for cb in bc2)
 
-    filter_cb = partial(cb_filterer, bc1=bc1, bc2=bc2)
+    if nedit == 0:
+        filter_cb = partial(exact_barcode_filter, bc1=bc1, bc2=bc2)
+    else:
+        bc1hash = MutationHash(bc1, nedit)
+        bc2hash = None
+        if bc2:
+            bc2hash = MutationHash(bc2, nedit)
+        filter_cb = partial(correcting_barcode_filter, bc1hash=bc1hash,
+                            bc2hash=bc2hash)
     p = multiprocessing.Pool(cores)
 
     chunks = tz.partition_all(10000, stream_fastq(fastq))
