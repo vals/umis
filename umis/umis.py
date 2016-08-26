@@ -376,21 +376,6 @@ def umi_histogram(fastq):
     for bc, count in counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))
 
-def cb_filterer(chunk, bc1, bc2):
-    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
-    kept = []
-    for read in chunk:
-        match = parser_re.search(read).groupdict()
-        cb1 = match['CB']
-        if bc2:
-            cb1, cb2 = cb1.split("-")
-        if cb1 not in bc1:
-            continue
-        if bc2 and cb2 not in bc2:
-            continue
-        kept.append(read)
-    return kept
-
 def get_cb_depth_set(cb_histogram, cb_cutoff):
     ''' Returns a set of barcodes with a minimum number of reads
     '''
