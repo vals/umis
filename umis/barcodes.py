@@ -94,8 +94,9 @@ def generate_idx(maxlen, nedit):
     """
     ALPHABET = ["A", "C", "G", "T"]
     indexlists = []
+    ALPHABETS = [ALPHABET for x in range(nedit)]
     return list(itertools.product(itertools.combinations(range(maxlen), nedit),
-                                  ALPHABET, ALPHABET))
+                                  *ALPHABETS))
 
 def mutate_string(string, tomutate):
     strlist = list(string)
