@@ -38,7 +38,7 @@ def correcting_barcode_filter(chunk, bc1hash, bc2hash):
         if correctbc == match['CB']:
             kept.append(read)
         else:
-            read.replace("CELL_" + match['CB'], "CELL_" + correctbc)
+            read = read.replace("CELL_" + match['CB'], "CELL_" + correctbc)
             kept.append(read)
     return kept
 
