@@ -14,6 +14,7 @@ from functools import partial
 import toolz as tz
 from barcodes import (exact_barcode_filter, correcting_barcode_filter,
                       MutationHash)
+import numpy as np
 
 import click
 
@@ -161,7 +162,9 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex):
 @click.option('--positional', default=False, is_flag=True)
 @click.option('--minevidence', required=False, default=1.0, type=float)
 @click.option('--cb_histogram', default=None)
-@click.option('--cb_cutoff', default=0)
+@click.option('--cb_cutoff', default=None,
+              help=("Number of counts to filter cellular barcodes. Set to "
+                    "'auto' to calculate a cutoff automatically."))
 @click.option('--no_scale_evidence', default=False, is_flag=True)
 @click.option('--subsample', required=False, default=None, type=int)
 # @profile
@@ -192,13 +195,21 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     else:
         tuple_template = '{0},{1},{3}'
 
+    if not cb_cutoff:
+        cb_cutoff = 0
+
+    if cb_histogram and cb_cutoff == "auto":
+        cb_cutoff = guess_depth_cutoff(cb_histogram)
+
+    cb_cutoff = int(cb_cutoff)
+
     cb_hist = None
     filter_cb = False
     if cb_histogram:
         cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, squeeze=True)
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
-        logger.info('Keeping {} out of {} cellular barcodes.'.format(total_num_cbs, cb_hist.shape[0]))
+        logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
         filter_cb = True
 
     parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
@@ -249,15 +260,22 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     sam_file = AlignmentFile(sam, mode=sam_mode)
     track = sam_file.fetch(until_eof=True)
     count = 0
+    unmapped = 0
     kept = 0
+    nomatchcb = 0
     current_read = 'none_observed_yet'
     count_this_read = True
     for i, aln in enumerate(track):
         count += 1
         if not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
+            logger.info("%d were filtered for being unmapped." % unmapped)
+            if filter_cb:
+                logger.info("%d were filtered for not matching known barcodes."
+                            % nomatchcb)
 
         if aln.is_unmapped:
+            unmapped += 1
             continue
 
         if aln.qname != current_read:
@@ -275,6 +293,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         CB = match.group('CB')
         if filter_cb:
             if CB not in cb_hist.index:
+                nomatchcb += 1
                 continue
 
         MB = match.group('MB')
@@ -412,7 +431,9 @@ def guess_depth_cutoff(cb_histogram):
     if not cutoff:
         return None
     else:
-        return 10**mids[cutoff]
+        cutoff = 10**mids[cutoff]
+        logger.info('Setting barcode cutoff to %d' % cutoff)
+        return cutoff
 
 @click.command()
 @click.argument('fastq', type=click.File('r'))
