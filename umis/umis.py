@@ -321,7 +321,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     buf = StringIO()
     for key in evidence:
         line = '{},{}\n'.format(key, evidence[key])
-        buf.write(line)
+        buf.write(unicode(line), "utf-8")
 
     buf.seek(0)
     evidence_table = pd.read_csv(buf)
