@@ -452,6 +452,13 @@ def cb_filter(fastq, bc1, bc2, cores):
             for read in chunk:
                 sys.stdout.write(read)
 
+def write_kallisto_chunk(out_dir, cb, chunk):
+    fq_fn = os.path.join(out_dir, cb + ".fq")
+    umi_fn = os.path.join(out_dir, cb + ".umi")
+    with open(fq_fn, "a") as fq_handle, open(umi_fn, "a") as umi_handle:
+        for read, umi in chunk:
+            fq_handle.write(read)
+            umi_handle.write(umi + "\n")
 
 @click.command()
 @click.argument('fastq', required=True)
@@ -473,18 +480,26 @@ def kallisto(fastq, out_dir, cb_histogram, cb_cutoff):
     cb_depth_set = get_cb_depth_set(cb_histogram, cb_cutoff)
 
     cb_set = set()
+    cb_batch = collections.defaultdict(list)
+    parsed = 0
     for read in stream_fastq(fastq_fh):
         match = parser_re.search(read).groupdict()
         umi = match['UMI']
         cb = match['CB']
         if cb_depth_set and cb not in cb_depth_set:
             continue
-
+        parsed += 1
         cb_set.add(cb)
-        with open(os.path.join(out_dir, cb + ".fq"), "a") as out_handle:
-            out_handle.write(read)
-        with open(os.path.join(out_dir, cb + ".umi"), "a") as out_handle:
-            out_handle.write(umi + "\n")
+        cb_batch[cb].append((read, umi))
+        # write in batches to avoid opening up file handles repeatedly
+        if not parsed % 10000000:
+            for cb, chunk in cb_batch.items():
+                write_kallisto_chunk(out_dir, cb, chunk)
+            cb_batch = defaultdict(list)
+
+    for cb, chunk in cb_batch.items():
+        write_kallisto_chunk(out_dir, cb, chunk)
+
     with open(os.path.join(out_dir, "barcodes.batch"), "w") as out_handle:
         out_handle.write("#id umi-file file-1\n")
         batchformat = "{cb} {cb}.umi {cb}.fq\n"
