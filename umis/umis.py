@@ -343,20 +343,34 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
 @click.command()
 @click.argument('fastq', type=click.File('r'))
-def cb_histogram(fastq):
+@click.option("--umi_histogram", required=False,
+              help=("Output a count of each UMI for each cellular barcode to this "
+                    "file."))
+
+def cb_histogram(fastq, umi_histogram):
     ''' Counts the number of reads for each cellular barcode
 
     Expects formatted fastq files.
     '''
-    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(?P<UMI>.*)\\n(.*)\\n\\+\\n(.*)\\n')
 
-    counter = collections.Counter()
+    cb_counter = collections.Counter()
+    umi_counter = collections.Counter()
     for read in stream_fastq(fastq):
         match = parser_re.search(read).groupdict()
-        counter[match['CB']] += 1
+        cb = match['CB']
+        umi = match['UMI']
+        cb_counter[cb] += 1
+        if umi_histogram:
+            umi_counter[(cb, umi)] += 1
 
-    for bc, count in counter.most_common():
+    for bc, count in cb_counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))
+
+    if umi_histogram:
+        with open(umi_histogram, "w") as umi_handle:
+            for cbumi, count in umi_counter.most_common():
+                umi_handle.write('{}\t{}\t{}\n'.format(cbumi[0], cbumi[1], count))
 
 @click.command()
 @click.argument('fastq', type=click.File('r'))
