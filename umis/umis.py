@@ -12,6 +12,9 @@ import time
 import multiprocessing
 from functools import partial
 import toolz as tz
+from barcodes import (exact_barcode_filter, correcting_barcode_filter,
+                      MutationHash)
+import numpy as np
 
 import click
 
@@ -159,7 +162,9 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex):
 @click.option('--positional', default=False, is_flag=True)
 @click.option('--minevidence', required=False, default=1.0, type=float)
 @click.option('--cb_histogram', default=None)
-@click.option('--cb_cutoff', default=0)
+@click.option('--cb_cutoff', default=None,
+              help=("Number of counts to filter cellular barcodes. Set to "
+                    "'auto' to calculate a cutoff automatically."))
 @click.option('--no_scale_evidence', default=False, is_flag=True)
 @click.option('--subsample', required=False, default=None, type=int)
 # @profile
@@ -190,13 +195,21 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     else:
         tuple_template = '{0},{1},{3}'
 
+    if not cb_cutoff:
+        cb_cutoff = 0
+
+    if cb_histogram and cb_cutoff == "auto":
+        cb_cutoff = guess_depth_cutoff(cb_histogram)
+
+    cb_cutoff = int(cb_cutoff)
+
     cb_hist = None
     filter_cb = False
     if cb_histogram:
         cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, squeeze=True)
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
-        logger.info('Keeping {} out of {} cellular barcodes.'.format(total_num_cbs, cb_hist.shape[0]))
+        logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
         filter_cb = True
 
     parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
@@ -247,15 +260,22 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     sam_file = AlignmentFile(sam, mode=sam_mode)
     track = sam_file.fetch(until_eof=True)
     count = 0
+    unmapped = 0
     kept = 0
+    nomatchcb = 0
     current_read = 'none_observed_yet'
     count_this_read = True
     for i, aln in enumerate(track):
         count += 1
         if not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
+            logger.info("%d were filtered for being unmapped." % unmapped)
+            if filter_cb:
+                logger.info("%d were filtered for not matching known barcodes."
+                            % nomatchcb)
 
         if aln.is_unmapped:
+            unmapped += 1
             continue
 
         if aln.qname != current_read:
@@ -273,6 +293,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         CB = match.group('CB')
         if filter_cb:
             if CB not in cb_hist.index:
+                nomatchcb += 1
                 continue
 
         MB = match.group('MB')
@@ -300,7 +321,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     buf = StringIO()
     for key in evidence:
         line = '{},{}\n'.format(key, evidence[key])
-        buf.write(line)
+        buf.write(unicode(line), "utf-8")
 
     buf.seek(0)
     evidence_table = pd.read_csv(buf)
@@ -340,7 +361,6 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
     genes.to_csv(out)
 
-
 @click.command()
 @click.argument('fastq', type=click.File('r'))
 def cb_histogram(fastq):
@@ -374,21 +394,6 @@ def umi_histogram(fastq):
 
     for bc, count in counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))
-
-def cb_filterer(chunk, bc1, bc2):
-    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
-    kept = []
-    for read in chunk:
-        match = parser_re.search(read).groupdict()
-        cb1 = match['CB']
-        if bc2:
-            cb1, cb2 = cb1.split("-")
-        if cb1 not in bc1:
-            continue
-        if bc2 and cb2 not in bc2:
-            continue
-        kept.append(read)
-    return kept
 
 def get_cb_depth_set(cb_histogram, cb_cutoff):
     ''' Returns a set of barcodes with a minimum number of reads
@@ -426,14 +431,17 @@ def guess_depth_cutoff(cb_histogram):
     if not cutoff:
         return None
     else:
-        return 10**mids[cutoff]
+        cutoff = 10**mids[cutoff]
+        logger.info('Setting barcode cutoff to %d' % cutoff)
+        return cutoff
 
 @click.command()
 @click.argument('fastq', type=click.File('r'))
 @click.option('--bc1', type=click.File('r'))
 @click.option('--bc2', type=click.File('r'), required=False)
 @click.option('--cores', default=1)
-def cb_filter(fastq, bc1, bc2, cores):
+@click.option('--nedit', default=0)
+def cb_filter(fastq, bc1, bc2, cores, nedit):
     ''' Filters reads with non-matching barcodes
     Expects formatted fastq files.
     '''
@@ -442,7 +450,15 @@ def cb_filter(fastq, bc1, bc2, cores):
     if bc2:
         bc2 = set(cb.strip() for cb in bc2)
 
-    filter_cb = partial(cb_filterer, bc1=bc1, bc2=bc2)
+    if nedit == 0:
+        filter_cb = partial(exact_barcode_filter, bc1=bc1, bc2=bc2)
+    else:
+        bc1hash = MutationHash(bc1, nedit)
+        bc2hash = None
+        if bc2:
+            bc2hash = MutationHash(bc2, nedit)
+        filter_cb = partial(correcting_barcode_filter, bc1hash=bc1hash,
+                            bc2hash=bc2hash)
     p = multiprocessing.Pool(cores)
 
     chunks = tz.partition_all(10000, stream_fastq(fastq))
