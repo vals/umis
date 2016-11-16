@@ -536,6 +536,45 @@ def kallisto(fastq, out_dir, cb_histogram, cb_cutoff):
         for cb in cb_set:
             out_handle.write(batchformat.format(**locals()))
 
+@click.command()
+@click.argument('sam', required=True)
+@click.option('--umi_only', default=False, is_flag=True,
+              help="only move UMI to tag")
+def bamtag(sam, umi_only):
+    ''' Convert a BAM/SAM with fastqtransformed read names to have UMI and
+    cellular barcode tags
+    '''
+    from pysam import AlignmentFile
+
+    if umi_only:
+        parser_re = re.compile('.*:UMI_(?P<MB>.*)')
+    else:
+        parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
+
+    start_time = time.time()
+
+    sam_mode = 'r' if sam.endswith(".sam") else 'rb'
+    sam_file = AlignmentFile(sam, mode=sam_mode)
+    out_file = AlignmentFile("-", "wh", template=sam_file)
+
+    track = sam_file.fetch(until_eof=True)
+
+    for count, aln in enumerate(track):
+        if not count % 100000:
+            logger.info("Processed %d alignments.")
+
+        match = parser_re.match(aln.qname)
+        tags = aln.tags
+
+        if not umi_only:
+            aln.tags += [('XC', match.group('CB'))]
+
+        aln.tags += [('XR', match.group('MB'))]
+        out_file.write(aln)
+
+    total_time = time.time() - start_time
+    logger.info('BAM tag conversion done - {:.3}s, {:,} alns/min'.format(total_time, int(60. * count / total_time)))
+
 @click.group()
 def umis():
     pass
@@ -546,3 +585,4 @@ umis.add_command(cb_histogram)
 umis.add_command(umi_histogram)
 umis.add_command(cb_filter)
 umis.add_command(kallisto)
+umis.add_command(bamtag)

@@ -1,4 +1,5 @@
 rm test*.fq
+rm test*.sam
 
 umis fastqtransform \
 examples/MARS-Seq/transform.json \
@@ -65,3 +66,7 @@ examples/STRT-Seq/dual_index_transform.json \
 examples/STRT-Seq/dualindex_example_1.fastq \
 examples/STRT-Seq/dualindex_example_2.fastq \
 > test11.fq
+
+umis bamtag \
+examples/bamtag/bamtag.sam \
+> test_bamtag.sam
