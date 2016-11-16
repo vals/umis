@@ -62,6 +62,7 @@ def write_fastq(filename):
 @click.argument('fastq1', required=True)
 @click.argument('fastq2', default=None, required=False)
 @click.argument('fastq3', default=None, required=False)
+@click.option('--keep_fastq_tags', default=False, is_flag=True)
 @click.option('--umi_only', default=False, is_flag=True)
 @click.option('--separate_cb', is_flag=True,
               help="Keep dual index barcodes separate.")
@@ -72,19 +73,23 @@ def write_fastq(filename):
 @click.option('--fastq2out', default=None)
 @click.option('--min_length', default=1, help="Minimum length of read to keep.")
 # @profile
-def fastqtransform(transform, fastq1, fastq2, fastq3, umi_only,
-                   separate_cb, demuxed_cb, dual_index, cores, fastq1out,
-                   fastq2out, min_length):
+def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
+                   umi_only, separate_cb, demuxed_cb, dual_index, cores,
+                   fastq1out, fastq2out, min_length):
     ''' Transform input reads to the tagcounts compatible read layout using
     regular expressions as defined in a transform file. Outputs new format to
     stdout.
     '''
     if dual_index and separate_cb:
-        read_template = '{name}:CELL_{CB1}-{CB2}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+        read_template = '{name}:CELL_{CB1}-{CB2}:UMI_{MB}'
     elif umi_only:
-        read_template = '{name}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+        read_template = '{name}:UMI_{MB}'
     else:
-        read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+        read_template = '{name}:CELL_{CB}:UMI_{MB}'
+
+    if keep_fastq_tags:
+        read_template += ' {fastqtag}'
+    read_template += '\n{seq}\n+\n{qual}\n'
 
     paired = fastq1out and fastq2out
 
@@ -127,8 +132,16 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, umi_only,
                         read2_dict['CB'] = demuxed_cb
 
                     # Deal with spaces in read names
-                    read1_dict['name'] = read1_dict['name'].partition(' ')[0]
-                    read2_dict['name'] = read2_dict['name'].partition(' ')[0]
+                    if keep_fastq_tags:
+                        name, tag = read1_dict['name'].split(' ')
+                        read1_dict['name'] = name
+                        read1_dict['fastqtag'] = tag
+                        name, tag = read2_dict['name'].split(' ')
+                        read2_dict['name'] = name
+                        read2_dict['fastqtag'] = tag
+                    else:
+                        read1_dict['name'] = read1_dict['name'].partition(' ')[0]
+                        read2_dict['name'] = read2_dict['name'].partition(' ')[0]
 
                     tooshort = (len(read1_dict['seq']) < min_length and
                                 len(read2_dict['seq']) < min_length)
@@ -146,7 +159,12 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, umi_only,
                         read1_dict['CB'] = demuxed_cb
 
                     # Deal with spaces in read names
-                    read1_dict['name'] = read1_dict['name'].partition(' ')[0]
+                    if keep_fastq_tags:
+                        name, tag = read1_dict['name'].split(' ')
+                        read1_dict['name'] = name
+                        read1_dict['fastqtag'] = tag
+                    else:
+                        read1_dict['name'] = read1_dict['name'].partition(' ')[0]
                     if len(read1_dict['seq']) >= min_length:
                         if fastq1out_fh:
                             fastq1out_fh.write(read_template.format(**read1_dict))

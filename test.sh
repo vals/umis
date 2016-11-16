@@ -68,6 +68,7 @@ examples/STRT-Seq/dualindex_example_2.fastq \
 > test11.fq
 
 umis fastqtransform \
+--keep_fastq_tags \
 --umi_only \
 --fastq1out test12_1.fq \
 --fastq2out test12_2.fq \
