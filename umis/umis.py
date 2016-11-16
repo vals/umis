@@ -32,66 +32,78 @@ def stream_fastq(file_handler):
             yield next_element
             next_element = ''
 
+def read_fastq(filename):
+    """
+    return a stream of FASTQ entries, handling gzipped and empty files
+    """
+    if not filename:
+        return itertools.cycle((None,))
+    if filename.endswith('gz'):
+        filename_fh = gzip.open(filename, mode='rt')
+    else:
+        filename_fh = open(filename)
+    return stream_fastq(filename_fh)
+
+def write_fastq(filename):
+    """
+    return a handle for FASTQ writing, handling gzipped files
+    """
+    if filename:
+        if filename.endswith('gz'):
+            filename_fh = gzip.open(filename, mode='wb')
+        else:
+            filename_fh = open(filename, mode='w')
+    else:
+        filename_fh = None
+    return filename_fh
+
 @click.command()
 @click.argument('transform', required=True)
 @click.argument('fastq1', required=True)
 @click.argument('fastq2', default=None, required=False)
 @click.argument('fastq3', default=None, required=False)
-@click.option('--separate_cb', is_flag=True, help="Keep dual index barcodes separate.")
+@click.option('--umi_only', default=False, is_flag=True)
+@click.option('--separate_cb', is_flag=True,
+              help="Keep dual index barcodes separate.")
 @click.option('--demuxed_cb', default=None)
 @click.option('--dual_index', is_flag=True)
 @click.option('--cores', default=1)
+@click.option('--fastq1out', default=None)
+@click.option('--fastq2out', default=None)
 @click.option('--min_length', default=1, help="Minimum length of read to keep.")
 # @profile
-def fastqtransform(transform, fastq1, fastq2, fastq3, separate_cb, demuxed_cb,
-                   dual_index, cores, min_length):
+def fastqtransform(transform, fastq1, fastq2, fastq3, umi_only,
+                   separate_cb, demuxed_cb, dual_index, cores, fastq1out,
+                   fastq2out, min_length):
     ''' Transform input reads to the tagcounts compatible read layout using
     regular expressions as defined in a transform file. Outputs new format to
     stdout.
     '''
     if dual_index and separate_cb:
         read_template = '{name}:CELL_{CB1}-{CB2}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+    elif umi_only:
+        read_template = '{name}:UMI_{MB}\n{seq}\n+\n{qual}\n'
     else:
         read_template = '{name}:CELL_{CB}:UMI_{MB}\n{seq}\n+\n{qual}\n'
+
+    paired = fastq1out and fastq2out
 
     transform = json.load(open(transform))
     read1_regex = re.compile(transform['read1'])
     read2_regex = re.compile(transform['read2']) if fastq2 else None
     read3_regex = re.compile(transform['read3']) if fastq3 else None
 
-    if fastq1.endswith('gz'):
-        fastq1_fh = gzip.open(fastq1, mode='rt')
-    else:
-        fastq1_fh = open(fastq1)
-
-
-    fastq_file1 = stream_fastq(fastq1_fh)
-
-    if fastq2:
-        if fastq2.endswith('gz'):
-            fastq2_fh = gzip.open(fastq2, mode='rt')
-        else:
-            fastq2_fh = open(fastq2)
-
-        fastq_file2 = stream_fastq(fastq2_fh)
-
-    else:
-        fastq_file2 = itertools.cycle((None,))
-
-    if fastq3:
-        if fastq3.endswith('gz'):
-            fastq3_fh = gzip.open(fastq3, mode='rt')
-        else:
-            fastq3_fh = open(fastq3)
-
-        fastq_file3 = stream_fastq(fastq3_fh)
-
-    else:
-        fastq_file3 = itertools.cycle((None,))
+    fastq_file1 = read_fastq(fastq1)
+    fastq_file2 = read_fastq(fastq2)
+    fastq_file3 = read_fastq(fastq3)
 
     transform = partial(transformer, read1_regex=read1_regex,
                                      read2_regex=read2_regex,
-                                     read3_regex=read3_regex)
+                                     read3_regex=read3_regex, paired=paired)
+
+    fastq1out_fh = write_fastq(fastq1out)
+    fastq2out_fh = write_fastq(fastq2out)
+
     p = multiprocessing.Pool(cores)
 
     try :
@@ -103,21 +115,47 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, separate_cb, demuxed_cb,
     bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(transform, list(bigchunk)):
-            for read1_dict in chunk:
-                if dual_index:
-                    if not separate_cb:
-                        read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
+            if paired:
+                for read1_dict, read2_dict in tz.partition(2, chunk):
+                    if dual_index:
+                        if not separate_cb:
+                            read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
+                            read2_dict['CB'] = read2_dict['CB1'] + read2_dict['CB2']
 
-                if demuxed_cb:
-                    read1_dict['CB'] = demuxed_cb
+                    if demuxed_cb:
+                        read1_dict['CB'] = demuxed_cb
+                        read2_dict['CB'] = demuxed_cb
 
-                # Deal with spaces in read names
-                read1_dict['name'] = read1_dict['name'].partition(' ')[0]
-                if len(read1_dict['seq']) >= min_length:
-                    sys.stdout.write(read_template.format(**read1_dict))
+                    # Deal with spaces in read names
+                    read1_dict['name'] = read1_dict['name'].partition(' ')[0]
+                    read2_dict['name'] = read2_dict['name'].partition(' ')[0]
 
-def transformer(chunk, read1_regex, read2_regex, read3_regex):
+                    tooshort = (len(read1_dict['seq']) < min_length and
+                                len(read2_dict['seq']) < min_length)
+
+                    if not tooshort:
+                        fastq1out_fh.write(read_template.format(**read1_dict))
+                        fastq2out_fh.write(read_template.format(**read2_dict))
+            else:
+                for read1_dict in chunk:
+                    if dual_index:
+                        if not separate_cb:
+                            read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
+
+                    if demuxed_cb:
+                        read1_dict['CB'] = demuxed_cb
+
+                    # Deal with spaces in read names
+                    read1_dict['name'] = read1_dict['name'].partition(' ')[0]
+                    if len(read1_dict['seq']) >= min_length:
+                        if fastq1out_fh:
+                            fastq1out_fh.write(read_template.format(**read1_dict))
+                        else:
+                            sys.stdout.write(read_template.format(**read1_dict))
+
+def transformer(chunk, read1_regex, read2_regex, read3_regex, paired=False):
     # Parse the reads with the regexes
+    update_keys = ("MB", "CB", "CB1", "CB2")
     reads = []
     for read1, read2, read3 in chunk:
         read1_match = read1_regex.search(read1)
@@ -146,11 +184,25 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex):
         else:
             read3_dict = dict()
 
-        read1_dict.update(read2_dict)
-        read1_dict.update(read3_dict)
+
+        if paired:
+            read1_dict.update({k: v for k, v in read2_dict.items() if k not
+                               in read1_dict})
+            read1_dict.update({k: v for k, v in read3_dict.items() if k not
+                               in read1_dict})
+            read2_dict.update({k: v for k, v in read1_dict.items() if k not
+                               in read2_dict})
+            read2_dict.update({k: v for k, v in read3_dict.items() if k not
+                               in read2_dict})
+        else:
+            read1_dict.update(read2_dict)
+            read1_dict.update(read3_dict)
 
         # Output the restrutured read
         reads.append(read1_dict)
+
+        if paired:
+            reads.append(read2_dict)
 
     return reads
 
