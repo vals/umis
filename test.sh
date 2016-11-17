@@ -67,6 +67,16 @@ examples/STRT-Seq/dualindex_example_1.fastq \
 examples/STRT-Seq/dualindex_example_2.fastq \
 > test11.fq
 
+umis fastqtransform \
+--keep_fastq_tags \
+--umi_only \
+--fastq1out test12_1.fq \
+--fastq2out test12_2.fq \
+examples/paired-with-umi-read/transform.json \
+examples/paired-with-umi-read/fq_1.fq \
+examples/paired-with-umi-read/fq_2.fq \
+examples/paired-with-umi-read/umi.fq 
+
 umis bamtag \
 examples/bamtag/bamtag.sam \
 > test_bamtag.sam
