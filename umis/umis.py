@@ -81,11 +81,11 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
     stdout.
     '''
     if dual_index and separate_cb:
-        read_template = '{name}:CELL_{CB1}-{CB2}:UMI_{MB}'
+        read_template = '{name}:CELL_{CB1}-{CB2}:UMI_{MB}{readnum}'
     elif umi_only:
-        read_template = '{name}:UMI_{MB}'
+        read_template = '{name}:UMI_{MB}{readnum}'
     else:
-        read_template = '{name}:CELL_{CB}:UMI_{MB}'
+        read_template = '{name}:CELL_{CB}:UMI_{MB}{readnum}'
 
     if keep_fastq_tags:
         read_template += ' {fastqtag}'
@@ -142,6 +142,8 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
                     else:
                         read1_dict['name'] = read1_dict['name'].partition(' ')[0]
                         read2_dict['name'] = read2_dict['name'].partition(' ')[0]
+                    read1_dict = _extract_readnum(read1_dict)
+                    read2_dict = _extract_readnum(read2_dict)
 
                     tooshort = (len(read1_dict['seq']) < min_length and
                                 len(read2_dict['seq']) < min_length)
@@ -165,11 +167,28 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
                         read1_dict['fastqtag'] = tag
                     else:
                         read1_dict['name'] = read1_dict['name'].partition(' ')[0]
+                    read1_dict = _extract_readnum(read1_dict)
                     if len(read1_dict['seq']) >= min_length:
                         if fastq1out_fh:
                             fastq1out_fh.write(read_template.format(**read1_dict))
                         else:
                             sys.stdout.write(read_template.format(**read1_dict))
+
+def _extract_readnum(read_dict):
+    """Extract read numbers from old-style fastqs.
+
+    Handles read 1 and 2 specifications where naming is
+    readname/1 readname/2
+    """
+    pat = re.compile(r"(?P<readnum>/\d+)$")
+    parts = pat.split(read_dict["name"])
+    if len(parts) == 3:
+        name, readnum, endofline = parts
+        read_dict["name"] = name
+        read_dict["readnum"] = readnum
+    else:
+        read_dict["readnum"] = ""
+    return read_dict
 
 def transformer(chunk, read1_regex, read2_regex, read3_regex, paired=False):
     # Parse the reads with the regexes
@@ -391,7 +410,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     buf = StringIO()
     for key in evidence:
         line = '{},{}\n'.format(key, evidence[key])
-        buf.write(unicode(line), "utf-8")
+        buf.write(unicode(line, "utf-8"))
 
     buf.seek(0)
     evidence_table = pd.read_csv(buf)
@@ -617,9 +636,9 @@ def bamtag(sam, umi_only):
     from pysam import AlignmentFile
 
     if umi_only:
-        parser_re = re.compile('.*:UMI_(?P<MB>.*)')
+        parser_re = re.compile('.*:UMI_(?P<MB>\w*)')
     else:
-        parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
+        parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>\w*)')
 
     start_time = time.time()
 
@@ -631,7 +650,7 @@ def bamtag(sam, umi_only):
 
     for count, aln in enumerate(track):
         if not count % 100000:
-            logger.info("Processed %d alignments.")
+            logger.info("Processed %d alignments." % count)
 
         match = parser_re.match(aln.qname)
         tags = aln.tags
@@ -639,7 +658,7 @@ def bamtag(sam, umi_only):
         if not umi_only:
             aln.tags += [('XC', match.group('CB'))]
 
-        aln.tags += [('XR', match.group('MB'))]
+        aln.tags += [('RX', match.group('MB'))]
         out_file.write(aln)
 
     total_time = time.time() - start_time
