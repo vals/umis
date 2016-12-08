@@ -226,7 +226,7 @@ def _extract_readnum(read_dict):
 
 def transformer(chunk, read1_regex, read2_regex, read3_regex, paired=False):
     # Parse the reads with the regexes
-    update_keys = ("MB", "CB", "CB1", "CB2")
+    update_keys = ("MB", "CB", "CB1", "CB2", "SP")
     reads = []
     for read1, read2, read3 in chunk:
         read1_match = read1_regex.search(read1)
