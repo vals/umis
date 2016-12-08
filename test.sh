@@ -75,6 +75,12 @@ examples/paired-with-umi-read/fq_1.fq \
 examples/paired-with-umi-read/fq_2.fq \
 examples/paired-with-umi-read/umi.fq 
 
+umis fastqtransform \
+examples/SCRB-Seq/transform.json \
+examples/SCRB-Seq/scrbseq_R1.fastq \
+examples/SCRB-Seq/scrbseq_R2.fastq \
+> test13.fq
+
 umis bamtag \
 examples/bamtag/bamtag.sam \
 > test_bamtag.sam
