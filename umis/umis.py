@@ -63,29 +63,41 @@ def write_fastq(filename):
 @click.argument('fastq2', default=None, required=False)
 @click.argument('fastq3', default=None, required=False)
 @click.option('--keep_fastq_tags', default=False, is_flag=True)
-@click.option('--umi_only', default=False, is_flag=True)
 @click.option('--separate_cb', is_flag=True,
               help="Keep dual index barcodes separate.")
 @click.option('--demuxed_cb', default=None)
-@click.option('--dual_index', is_flag=True)
 @click.option('--cores', default=1)
 @click.option('--fastq1out', default=None)
 @click.option('--fastq2out', default=None)
 @click.option('--min_length', default=1, help="Minimum length of read to keep.")
 # @profile
 def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
-                   umi_only, separate_cb, demuxed_cb, dual_index, cores,
+                   separate_cb, demuxed_cb, cores,
                    fastq1out, fastq2out, min_length):
     ''' Transform input reads to the tagcounts compatible read layout using
     regular expressions as defined in a transform file. Outputs new format to
     stdout.
     '''
-    if dual_index and separate_cb:
-        read_template = '{name}:CELL_{CB1}-{CB2}:UMI_{MB}{readnum}'
-    elif umi_only:
-        read_template = '{name}:UMI_{MB}{readnum}'
-    else:
-        read_template = '{name}:CELL_{CB}:UMI_{MB}{readnum}'
+    transform = json.load(open(transform))
+    options = _infer_transform_options(transform)
+    read_template = '{name}'
+    if options.dual_index:
+        logger.info("Detected dual indexes.")
+        if separate_cb:
+            read_template += ':CELL_{CB1}-{CB2}'
+        else:
+            read_template += ':CELL_{CB}'
+    elif options.CB or demuxed_cb:
+        logger.info("Detected cellular barcodes.")
+        read_template += ':CELL_{CB}'
+    if options.MB:
+        logger.info("Detected UMI.")
+        read_template += ':UMI_{MB}'
+    if options.SP:
+        logger.info("Detected sample.")
+        read_template += ':SAMPLE_{SP}'
+
+    read_template += "{readnum}"
 
     if keep_fastq_tags:
         read_template += ' {fastqtag}'
@@ -93,7 +105,6 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
 
     paired = fastq1out and fastq2out
 
-    transform = json.load(open(transform))
     read1_regex = re.compile(transform['read1'])
     read2_regex = re.compile(transform['read2']) if fastq2 else None
     read3_regex = re.compile(transform['read3']) if fastq3 else None
@@ -122,7 +133,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
         for chunk in p.map(transform, list(bigchunk)):
             if paired:
                 for read1_dict, read2_dict in tz.partition(2, chunk):
-                    if dual_index:
+                    if options.dual_index:
                         if not separate_cb:
                             read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
                             read2_dict['CB'] = read2_dict['CB1'] + read2_dict['CB2']
@@ -153,7 +164,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
                         fastq2out_fh.write(read_template.format(**read2_dict))
             else:
                 for read1_dict in chunk:
-                    if dual_index:
+                    if options.dual_index:
                         if not separate_cb:
                             read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
 
@@ -173,6 +184,29 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
                             fastq1out_fh.write(read_template.format(**read1_dict))
                         else:
                             sys.stdout.write(read_template.format(**read1_dict))
+
+def _is_umi_only(options):
+    return options.MB and not options.CB
+
+def _infer_transform_options(transform):
+    TransformOptions = collections.namedtuple("TransformOptions",
+                                              ['CB', 'dual_index', 'MB', 'SP'])
+    CB = False
+    dual_index = False
+    SP = False
+    MB = True
+    for rx in transform.values():
+        if not rx:
+            continue
+        if "CB1" in rx:
+            dual_index = True
+        if "SP" in rx:
+            SP = True
+        if "CB" in rx:
+            CB = True
+        if "MB" in rx:
+            MB = True
+    return TransformOptions(CB=CB, dual_index=dual_index, MB=MB, SP=SP)
 
 def _extract_readnum(read_dict):
     """Extract read numbers from old-style fastqs.
