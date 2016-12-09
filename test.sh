@@ -81,6 +81,15 @@ examples/SCRB-Seq/scrbseq_R1.fastq \
 examples/SCRB-Seq/scrbseq_R2.fastq \
 > test13.fq
 
+umis fastqtransform \
+--separate_cb \
+examples/Klein-inDrop/transform.json \
+examples/Klein-inDrop/klein-v3_R1.fq \
+examples/Klein-inDrop/klein-v3_R2.fq \
+examples/Klein-inDrop/klein-v3_R3.fq \
+examples/Klein-inDrop/klein-v3_R4.fq \
+> test14.fq
+
 umis bamtag \
 examples/bamtag/bamtag.sam \
 > test_bamtag.sam
