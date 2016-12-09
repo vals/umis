@@ -410,7 +410,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     count_this_read = True
     for i, aln in enumerate(track):
         count += 1
-        if not count % 100000:
+        if count and not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
             logger.info("%d were filtered for being unmapped." % unmapped)
             if filter_cb:
