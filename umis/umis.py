@@ -94,9 +94,9 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
     if options.MB:
         logger.info("Detected UMI.")
         read_template += ':UMI_{MB}'
-    if options.SP:
+    if options.SB:
         logger.info("Detected sample.")
-        read_template += ':SAMPLE_{SP}'
+        read_template += ':SAMPLE_{SB}'
 
     read_template += "{readnum}"
 
@@ -194,23 +194,23 @@ def _is_umi_only(options):
 
 def _infer_transform_options(transform):
     TransformOptions = collections.namedtuple("TransformOptions",
-                                              ['CB', 'dual_index', 'MB', 'SP'])
+                                              ['CB', 'dual_index', 'MB', 'SB'])
     CB = False
     dual_index = False
-    SP = False
+    SB = False
     MB = True
     for rx in transform.values():
         if not rx:
             continue
         if "CB1" in rx:
             dual_index = True
-        if "SP" in rx:
-            SP = True
+        if "SB" in rx:
+            SB = True
         if "CB" in rx:
             CB = True
         if "MB" in rx:
             MB = True
-    return TransformOptions(CB=CB, dual_index=dual_index, MB=MB, SP=SP)
+    return TransformOptions(CB=CB, dual_index=dual_index, MB=MB, SB=SB)
 
 def _extract_readnum(read_dict):
     """Extract read numbers from old-style fastqs.
