@@ -62,6 +62,7 @@ def write_fastq(filename):
 @click.argument('fastq1', required=True)
 @click.argument('fastq2', default=None, required=False)
 @click.argument('fastq3', default=None, required=False)
+@click.argument('fastq4', default=None, required=False)
 @click.option('--keep_fastq_tags', default=False, is_flag=True)
 @click.option('--separate_cb', is_flag=True,
               help="Keep dual index barcodes separate.")
@@ -71,9 +72,9 @@ def write_fastq(filename):
 @click.option('--fastq2out', default=None)
 @click.option('--min_length', default=1, help="Minimum length of read to keep.")
 # @profile
-def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
-                   separate_cb, demuxed_cb, cores,
-                   fastq1out, fastq2out, min_length):
+def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
+                   separate_cb, demuxed_cb, cores, fastq1out, fastq2out,
+                   min_length):
     ''' Transform input reads to the tagcounts compatible read layout using
     regular expressions as defined in a transform file. Outputs new format to
     stdout.
@@ -108,14 +109,16 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
     read1_regex = re.compile(transform['read1'])
     read2_regex = re.compile(transform['read2']) if fastq2 else None
     read3_regex = re.compile(transform['read3']) if fastq3 else None
+    read4_regex = re.compile(transform['read4']) if fastq4 else None
 
     fastq_file1 = read_fastq(fastq1)
     fastq_file2 = read_fastq(fastq2)
     fastq_file3 = read_fastq(fastq3)
+    fastq_file4 = read_fastq(fastq4)
 
     transform = partial(transformer, read1_regex=read1_regex,
-                                     read2_regex=read2_regex,
-                                     read3_regex=read3_regex, paired=paired)
+                        read2_regex=read2_regex, read3_regex=read3_regex,
+                        read4_regex=read4_regex, paired=paired)
 
     fastq1out_fh = write_fastq(fastq1out)
     fastq2out_fh = write_fastq(fastq2out)
@@ -127,7 +130,8 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
     except AttributeError:
         zzip = zip
 
-    chunks = tz.partition_all(10000, zzip(fastq_file1, fastq_file2, fastq_file3))
+    chunks = tz.partition_all(10000, zzip(fastq_file1, fastq_file2, fastq_file3,
+                                          fastq_file4))
     bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(transform, list(bigchunk)):
@@ -224,11 +228,12 @@ def _extract_readnum(read_dict):
         read_dict["readnum"] = ""
     return read_dict
 
-def transformer(chunk, read1_regex, read2_regex, read3_regex, paired=False):
+def transformer(chunk, read1_regex, read2_regex, read3_regex, read4_regex,
+                paired=False):
     # Parse the reads with the regexes
     update_keys = ("MB", "CB", "CB1", "CB2", "SP")
     reads = []
-    for read1, read2, read3 in chunk:
+    for read1, read2, read3, read4 in chunk:
         read1_match = read1_regex.search(read1)
         if not read1_match:
             continue
@@ -255,19 +260,34 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex, paired=False):
         else:
             read3_dict = dict()
 
+        if read4_regex:
+            read4_match = read4_regex.search(read4)
+            if not read4_match:
+                continue
+
+            read4_dict = read4_match.groupdict()
+
+        else:
+            read4_dict = dict()
+
 
         if paired:
             read1_dict.update({k: v for k, v in read2_dict.items() if k not
                                in read1_dict})
             read1_dict.update({k: v for k, v in read3_dict.items() if k not
                                in read1_dict})
+            read1_dict.update({k: v for k, v in read4_dict.items() if k not
+                               in read1_dict})
             read2_dict.update({k: v for k, v in read1_dict.items() if k not
                                in read2_dict})
             read2_dict.update({k: v for k, v in read3_dict.items() if k not
                                in read2_dict})
+            read2_dict.update({k: v for k, v in read4_dict.items() if k not
+                               in read2_dict})
         else:
             read1_dict.update(read2_dict)
             read1_dict.update(read3_dict)
+            read1_dict.update(read4_dict)
 
         # Output the restrutured read
         reads.append(read1_dict)
