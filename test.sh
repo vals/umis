@@ -61,7 +61,6 @@ examples/CEL-Seq/SRP048838_2.fastq \
 > test10.fq
 
 umis fastqtransform \
---dual_index \
 examples/STRT-Seq/dual_index_transform.json \
 examples/STRT-Seq/dualindex_example_1.fastq \
 examples/STRT-Seq/dualindex_example_2.fastq \
@@ -69,13 +68,27 @@ examples/STRT-Seq/dualindex_example_2.fastq \
 
 umis fastqtransform \
 --keep_fastq_tags \
---umi_only \
 --fastq1out test12_1.fq \
 --fastq2out test12_2.fq \
 examples/paired-with-umi-read/transform.json \
 examples/paired-with-umi-read/fq_1.fq \
 examples/paired-with-umi-read/fq_2.fq \
 examples/paired-with-umi-read/umi.fq 
+
+umis fastqtransform \
+examples/SCRB-Seq/transform.json \
+examples/SCRB-Seq/scrbseq_R1.fastq \
+examples/SCRB-Seq/scrbseq_R2.fastq \
+> test13.fq
+
+umis fastqtransform \
+--separate_cb \
+examples/Klein-inDrop/transform.json \
+examples/Klein-inDrop/klein-v3_R1.fq \
+examples/Klein-inDrop/klein-v3_R2.fq \
+examples/Klein-inDrop/klein-v3_R3.fq \
+examples/Klein-inDrop/klein-v3_R4.fq \
+> test14.fq
 
 umis bamtag \
 examples/bamtag/bamtag.sam \

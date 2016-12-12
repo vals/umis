@@ -62,30 +62,43 @@ def write_fastq(filename):
 @click.argument('fastq1', required=True)
 @click.argument('fastq2', default=None, required=False)
 @click.argument('fastq3', default=None, required=False)
+@click.argument('fastq4', default=None, required=False)
 @click.option('--keep_fastq_tags', default=False, is_flag=True)
-@click.option('--umi_only', default=False, is_flag=True)
 @click.option('--separate_cb', is_flag=True,
               help="Keep dual index barcodes separate.")
 @click.option('--demuxed_cb', default=None)
-@click.option('--dual_index', is_flag=True)
 @click.option('--cores', default=1)
 @click.option('--fastq1out', default=None)
 @click.option('--fastq2out', default=None)
 @click.option('--min_length', default=1, help="Minimum length of read to keep.")
 # @profile
-def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
-                   umi_only, separate_cb, demuxed_cb, dual_index, cores,
-                   fastq1out, fastq2out, min_length):
+def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
+                   separate_cb, demuxed_cb, cores, fastq1out, fastq2out,
+                   min_length):
     ''' Transform input reads to the tagcounts compatible read layout using
     regular expressions as defined in a transform file. Outputs new format to
     stdout.
     '''
-    if dual_index and separate_cb:
-        read_template = '{name}:CELL_{CB1}-{CB2}:UMI_{MB}{readnum}'
-    elif umi_only:
-        read_template = '{name}:UMI_{MB}{readnum}'
-    else:
-        read_template = '{name}:CELL_{CB}:UMI_{MB}{readnum}'
+    transform = json.load(open(transform))
+    options = _infer_transform_options(transform)
+    read_template = '{name}'
+    if options.dual_index:
+        logger.info("Detected dual indexes.")
+        if separate_cb:
+            read_template += ':CELL_{CB1}-{CB2}'
+        else:
+            read_template += ':CELL_{CB}'
+    elif options.CB or demuxed_cb:
+        logger.info("Detected cellular barcodes.")
+        read_template += ':CELL_{CB}'
+    if options.MB:
+        logger.info("Detected UMI.")
+        read_template += ':UMI_{MB}'
+    if options.SB:
+        logger.info("Detected sample.")
+        read_template += ':SAMPLE_{SB}'
+
+    read_template += "{readnum}"
 
     if keep_fastq_tags:
         read_template += ' {fastqtag}'
@@ -93,18 +106,19 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
 
     paired = fastq1out and fastq2out
 
-    transform = json.load(open(transform))
     read1_regex = re.compile(transform['read1'])
     read2_regex = re.compile(transform['read2']) if fastq2 else None
     read3_regex = re.compile(transform['read3']) if fastq3 else None
+    read4_regex = re.compile(transform['read4']) if fastq4 else None
 
     fastq_file1 = read_fastq(fastq1)
     fastq_file2 = read_fastq(fastq2)
     fastq_file3 = read_fastq(fastq3)
+    fastq_file4 = read_fastq(fastq4)
 
     transform = partial(transformer, read1_regex=read1_regex,
-                                     read2_regex=read2_regex,
-                                     read3_regex=read3_regex, paired=paired)
+                        read2_regex=read2_regex, read3_regex=read3_regex,
+                        read4_regex=read4_regex, paired=paired)
 
     fastq1out_fh = write_fastq(fastq1out)
     fastq2out_fh = write_fastq(fastq2out)
@@ -116,13 +130,14 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
     except AttributeError:
         zzip = zip
 
-    chunks = tz.partition_all(10000, zzip(fastq_file1, fastq_file2, fastq_file3))
+    chunks = tz.partition_all(10000, zzip(fastq_file1, fastq_file2, fastq_file3,
+                                          fastq_file4))
     bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(transform, list(bigchunk)):
             if paired:
                 for read1_dict, read2_dict in tz.partition(2, chunk):
-                    if dual_index:
+                    if options.dual_index:
                         if not separate_cb:
                             read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
                             read2_dict['CB'] = read2_dict['CB1'] + read2_dict['CB2']
@@ -153,7 +168,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
                         fastq2out_fh.write(read_template.format(**read2_dict))
             else:
                 for read1_dict in chunk:
-                    if dual_index:
+                    if options.dual_index:
                         if not separate_cb:
                             read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
 
@@ -174,6 +189,29 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, keep_fastq_tags,
                         else:
                             sys.stdout.write(read_template.format(**read1_dict))
 
+def _is_umi_only(options):
+    return options.MB and not options.CB
+
+def _infer_transform_options(transform):
+    TransformOptions = collections.namedtuple("TransformOptions",
+                                              ['CB', 'dual_index', 'MB', 'SB'])
+    CB = False
+    dual_index = False
+    SB = False
+    MB = True
+    for rx in transform.values():
+        if not rx:
+            continue
+        if "CB1" in rx:
+            dual_index = True
+        if "SB" in rx:
+            SB = True
+        if "CB" in rx:
+            CB = True
+        if "MB" in rx:
+            MB = True
+    return TransformOptions(CB=CB, dual_index=dual_index, MB=MB, SB=SB)
+
 def _extract_readnum(read_dict):
     """Extract read numbers from old-style fastqs.
 
@@ -190,11 +228,12 @@ def _extract_readnum(read_dict):
         read_dict["readnum"] = ""
     return read_dict
 
-def transformer(chunk, read1_regex, read2_regex, read3_regex, paired=False):
+def transformer(chunk, read1_regex, read2_regex, read3_regex, read4_regex,
+                paired=False):
     # Parse the reads with the regexes
-    update_keys = ("MB", "CB", "CB1", "CB2")
+    update_keys = ("MB", "CB", "CB1", "CB2", "SP")
     reads = []
-    for read1, read2, read3 in chunk:
+    for read1, read2, read3, read4 in chunk:
         read1_match = read1_regex.search(read1)
         if not read1_match:
             continue
@@ -221,19 +260,34 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex, paired=False):
         else:
             read3_dict = dict()
 
+        if read4_regex:
+            read4_match = read4_regex.search(read4)
+            if not read4_match:
+                continue
+
+            read4_dict = read4_match.groupdict()
+
+        else:
+            read4_dict = dict()
+
 
         if paired:
             read1_dict.update({k: v for k, v in read2_dict.items() if k not
                                in read1_dict})
             read1_dict.update({k: v for k, v in read3_dict.items() if k not
                                in read1_dict})
+            read1_dict.update({k: v for k, v in read4_dict.items() if k not
+                               in read1_dict})
             read2_dict.update({k: v for k, v in read1_dict.items() if k not
                                in read2_dict})
             read2_dict.update({k: v for k, v in read3_dict.items() if k not
                                in read2_dict})
+            read2_dict.update({k: v for k, v in read4_dict.items() if k not
+                               in read2_dict})
         else:
             read1_dict.update(read2_dict)
             read1_dict.update(read3_dict)
+            read1_dict.update(read4_dict)
 
         # Output the restrutured read
         reads.append(read1_dict)
@@ -356,7 +410,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     count_this_read = True
     for i, aln in enumerate(track):
         count += 1
-        if not count % 100000:
+        if count and not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
             logger.info("%d were filtered for being unmapped." % unmapped)
             if filter_cb:
