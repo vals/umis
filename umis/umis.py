@@ -441,7 +441,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         start_sampling  = time.time()
 
         reservoir = collections.defaultdict(list)
-
+        cb_hist_sampled = 0 * cb_hist
         cb_obs = 0 * cb_hist
 
         track = stream_bamfile(sam)
