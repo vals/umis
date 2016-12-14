@@ -21,6 +21,10 @@ import click
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+BarcodeInfo = collections.namedtuple("BarcodeInfo", ["bamtag", "readprefix"])
+BARCODEINFO = {"sample": BarcodeInfo(bamtag="XS", readprefix="SAMPLE"),
+               "cellular": BarcodeInfo(bamtag="XC", readprefix="CELL"),
+               "molecular": BarcodeInfo(bamtag="RX", readprefix="UMI")}
 
 def stream_fastq(file_handler):
     ''' Generator which gives all four lines if a fastq read as one string
@@ -56,6 +60,77 @@ def write_fastq(filename):
     else:
         filename_fh = None
     return filename_fh
+
+def stream_bamfile(sam):
+    from pysam import AlignmentFile
+    sam_mode = 'r' if sam.endswith(".sam") else 'rb'
+    sam_file = AlignmentFile(sam, mode=sam_mode)
+    track = sam_file.fetch(until_eof=True)
+    return track
+
+def detect_alignment_annotations(sam_file):
+    """
+    detects the annotations present in a SAM file, inspecting both the
+    tags and the query names returns a set of annotations present
+    """
+    annotations = set()
+    queryalignment = tz.first(stream_bamfile(sam_file))
+    for k, v in BARCODEINFO.items():
+        if v.readprefix in queryalignment.qname:
+            annotations.add(k)
+        if queryalignment.has_tag(v.bamtag):
+            annotations.add(k)
+    return annotations
+
+def detect_fastq_annotations(fastq_file):
+    """
+    detects annotations preesent in a FASTQ file by examining the first read
+    """
+    annotations = {k: False for k in
+                   BARCODEINFO.keys()}
+    queryread = first(read_fastq(fastq_file))
+    for k, v in BARCODEINFO.items():
+        if v.readprefix in queryread:
+            annotations[k] = True
+    return annotations
+
+def construct_fastq_template(options, demuxed_cb=False, keep_fastq_tags=False):
+    """
+    annotations is a dict of the keys in BARCODEINFO with True/False indicating
+    if the annotation should be added to the regex
+    """
+    read_template = ['{name}']
+    if options.dual_index:
+        logger.info("Detected dual indexes.")
+        cellular = BARCODEINFO["cellular"].readprefix
+        if separate_cb:
+            cellular += "_{CB1}-{CB2}"
+        else:
+            cellular += "_{CB}"
+        read_template.append(cellular)
+    elif options.CB or demuxed_cb:
+        logger.info("Detected cellular barcodes.")
+        cellular = BARCODEINFO["cellular"].readprefix
+        cellular += "_{CB}"
+        read_template.append(cellular)
+    if options.MB:
+        logger.info("Detected UMI.")
+        molecular = BARCODEINFO["molecular"].readprefix
+        molecular += "_{MB}"
+        read_template.append(molecular)
+    if options.SB:
+        logger.info("Detected sample.")
+        sample += BARCODEINFO["sample"].readprefix
+        sample += "_{SB}"
+        read_template.append(sample)
+
+    read_template = ":".join(read_template)
+    read_template += "{readnum}"
+
+    if keep_fastq_tags:
+        read_template += ' {fastqtag}'
+    read_template += '\n{seq}\n+\n{qual}\n'
+    return read_template
 
 @click.command()
 @click.argument('transform', required=True)
@@ -193,6 +268,10 @@ def _is_umi_only(options):
     return options.MB and not options.CB
 
 def _infer_transform_options(transform):
+    """
+    figure out what transform options should be by examining the provided
+    regexes for keywords
+    """
     TransformOptions = collections.namedtuple("TransformOptions",
                                               ['CB', 'dual_index', 'MB', 'SB'])
     CB = False
@@ -362,12 +441,10 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         start_sampling  = time.time()
 
         reservoir = collections.defaultdict(list)
-        cb_hist_sampled = 0 * cb_hist
+
         cb_obs = 0 * cb_hist
 
-        sam_mode = 'r' if sam.endswith(".sam") else 'rb'
-        sam_file = AlignmentFile(sam, mode=sam_mode)
-        track = sam_file.fetch(until_eof=True)
+        track = stream_bamfile(sam)
         current_read = 'none_observed_yet'
         for i, aln in enumerate(track):
             if aln.qname == current_read:
@@ -681,18 +758,26 @@ def kallisto(fastq, out_dir, cb_histogram, cb_cutoff):
 
 @click.command()
 @click.argument('sam', required=True)
-@click.option('--umi_only', default=False, is_flag=True,
-              help="only move UMI to tag")
-def bamtag(sam, umi_only):
+def bamtag(sam):
     ''' Convert a BAM/SAM with fastqtransformed read names to have UMI and
     cellular barcode tags
     '''
     from pysam import AlignmentFile
 
-    if umi_only:
-        parser_re = re.compile('.*:UMI_(?P<MB>\w*)')
-    else:
-        parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>\w*)')
+    annotations = detect_alignment_annotations(sam)
+
+    re_string = '.*'
+    if "cellular" in annotations:
+        re_string += ":CELL_(?P<CB>.*)"
+    if "molecular" in annotations:
+        re_string += ":UMI_(?P<MB>\w*)"
+    if "sample" in annotations:
+        re_string += ":SAMPLE_(?P<SB>\w*)"
+    if re_string == ".*":
+        logger.error("No annotation present on this BAM file, aborting.")
+        sys.exit(1)
+
+    parser_re = re.compile(re_string)
 
     start_time = time.time()
 
@@ -702,21 +787,26 @@ def bamtag(sam, umi_only):
 
     track = sam_file.fetch(until_eof=True)
 
-    for count, aln in enumerate(track):
-        if not count % 100000:
+    for count, aln in enumerate(track, start=1):
+        if count and not count % 100000:
             logger.info("Processed %d alignments." % count)
 
         match = parser_re.match(aln.qname)
         tags = aln.tags
 
-        if not umi_only:
+        if "cellular" in annotations:
             aln.tags += [('XC', match.group('CB'))]
+        if "molecular" in annotations:
+            aln.tags += [('RX', match.group('MB'))]
+        if "sample" in annotations:
+            aln.tags += [('XS', match.group('SB'))]
 
-        aln.tags += [('RX', match.group('MB'))]
         out_file.write(aln)
 
     total_time = time.time() - start_time
     logger.info('BAM tag conversion done - {:.3}s, {:,} alns/min'.format(total_time, int(60. * count / total_time)))
+    logger.info("Processed %d alignments." % count)
+
 
 @click.group()
 def umis():
