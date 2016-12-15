@@ -42,6 +42,28 @@ def correcting_barcode_filter(chunk, bc1hash, bc2hash):
             kept.append(read)
     return kept
 
+def exact_sample_filter(read, barcodes):
+    parser_re = re.compile('(.*):CELL_(.*):UMI_(.*):SAMPLE_(?P<SB>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    match = parser_re.search(read).groupdict()
+    sample = match['SB']
+    if sample not in barcodes:
+        return None
+    return read
+
+def correcting_sample_filter(read, barcodehash):
+    parser_re = re.compile('(.*):CELL_(.*):UMI_(.*):SAMPLE_(?P<SB>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    match = parser_re.search(read).groupdict()
+    sample = match['SB']
+    barcodecorrected = barcodehash[sample]
+    if not barcodecorrected:
+        return None
+    correctbc = barcodecorrected
+    if correctbc == match['SB']:
+        return(read)
+    else:
+        read = read.replace("SAMPLE_" + match['SB'], "SAMPLE_" + correctbc)
+        return(read)
+
 class MutationHash(object):
 
     def __init__(self, strings, nedit):
