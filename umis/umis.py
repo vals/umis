@@ -816,6 +816,9 @@ def bamtag(sam):
 @click.option('--nedit', default=0)
 @click.option('--barcodes', type=click.File('r'), required=False)
 def demultiplex_samples(fastq, out_dir, nedit, barcodes):
+    ''' Demultiplex a fastqtransformed FASTQ file into a FASTQ file for
+    each sample.
+    '''
     annotations = detect_annotations(fastq)
     re_string = construct_transformed_regex(annotations)
     parser_re = re.compile(re_string)
