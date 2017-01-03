@@ -13,6 +13,7 @@ import multiprocessing
 from functools import partial
 import toolz as tz
 from barcodes import (exact_barcode_filter, correcting_barcode_filter,
+                      exact_sample_filter, correcting_sample_filter,
                       MutationHash)
 import numpy as np
 
@@ -21,6 +22,29 @@ import click
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+BarcodeInfo = collections.namedtuple("BarcodeInfo", ["bamtag", "readprefix"])
+BARCODEINFO = {"sample": BarcodeInfo(bamtag="XS", readprefix="SAMPLE"),
+               "cellular": BarcodeInfo(bamtag="XC", readprefix="CELL"),
+               "molecular": BarcodeInfo(bamtag="RX", readprefix="UMI")}
+
+def safe_makedir(dname):
+    """Make a directory if it doesn't exist, handling concurrent race conditions.
+    """
+    if not dname:
+        return dname
+    num_tries = 0
+    max_tries = 5
+    while not os.path.exists(dname):
+        # we could get an error here if multiple processes are creating
+        # the directory at the same time. Grr, concurrency.
+        try:
+            os.makedirs(dname)
+        except OSError:
+            if num_tries > max_tries:
+                raise
+            num_tries += 1
+            time.sleep(2)
+    return dname
 
 def stream_fastq(file_handler):
     ''' Generator which gives all four lines if a fastq read as one string
@@ -56,6 +80,66 @@ def write_fastq(filename):
     else:
         filename_fh = None
     return filename_fh
+
+def stream_bamfile(sam):
+    from pysam import AlignmentFile
+    sam_mode = 'r' if sam.endswith(".sam") else 'rb'
+    sam_file = AlignmentFile(sam, mode=sam_mode)
+    track = sam_file.fetch(until_eof=True)
+    return track
+
+def detect_annotations(filename):
+    """
+    given a transformed FASTQ or SAM file, detect which annotations are present
+    handles SAM/BAM and gzipped FASTQ files
+    """
+    if filename.endswith("sam") or filename.endswith("bam"):
+        return detect_alignment_annotations(filename)
+    else:
+        return detect_fastq_annotations(filename)
+
+def detect_alignment_annotations(sam_file):
+    """
+    detects the annotations present in a SAM file, inspecting both the
+    tags and the query names returns a set of annotations present
+    """
+    annotations = set()
+    queryalignment = tz.first(stream_bamfile(sam_file))
+    for k, v in BARCODEINFO.items():
+        if v.readprefix in queryalignment.qname:
+            annotations.add(k)
+        if queryalignment.has_tag(v.bamtag):
+            annotations.add(k)
+    return annotations
+
+def detect_fastq_annotations(fastq_file):
+    """
+    detects annotations preesent in a FASTQ file by examining the first read
+    """
+    annotations = {k: False for k in
+                   BARCODEINFO.keys()}
+    queryread = tz.first(read_fastq(fastq_file))
+    for k, v in BARCODEINFO.items():
+        if v.readprefix in queryread:
+            annotations[k] = True
+    return annotations
+
+def construct_transformed_regex(annotations):
+    """
+    construct a regex that matches possible fields in a transformed file
+    annotations is a set of which keys in BARCODEINFO are present in the file
+    """
+    re_string = '.*'
+    if "cellular" in annotations:
+        re_string += ":CELL_(?P<CB>.*)"
+    if "molecular" in annotations:
+        re_string += ":UMI_(?P<MB>\w*)"
+    if "sample" in annotations:
+        re_string += ":SAMPLE_(?P<SB>\w*)"
+    if re_string == ".*":
+        logger.error("No annotation present on this file, aborting.")
+        sys.exit(1)
+    return re_string
 
 @click.command()
 @click.argument('transform', required=True)
@@ -193,6 +277,10 @@ def _is_umi_only(options):
     return options.MB and not options.CB
 
 def _infer_transform_options(transform):
+    """
+    figure out what transform options should be by examining the provided
+    regexes for keywords
+    """
     TransformOptions = collections.namedtuple("TransformOptions",
                                               ['CB', 'dual_index', 'MB', 'SB'])
     CB = False
@@ -365,9 +453,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         cb_hist_sampled = 0 * cb_hist
         cb_obs = 0 * cb_hist
 
-        sam_mode = 'r' if sam.endswith(".sam") else 'rb'
-        sam_file = AlignmentFile(sam, mode=sam_mode)
-        track = sam_file.fetch(until_eof=True)
+        track = stream_bamfile(sam)
         current_read = 'none_observed_yet'
         for i, aln in enumerate(track):
             if aln.qname == current_read:
@@ -515,7 +601,9 @@ def cb_histogram(fastq, umi_histogram):
 
     Expects formatted fastq files.
     '''
-    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(?P<UMI>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    annotations = detect_annotations(fastq)
+    re_string = construct_transformed_regex(annotations)
+    parser_re = re.compile(re_string)
 
     cb_counter = collections.Counter()
     umi_counter = collections.Counter()
@@ -542,7 +630,9 @@ def umi_histogram(fastq):
 
     Expects formatted fastq files.
     '''
-    parser_re = re.compile('(.*):CELL_(.*):UMI_(?P<UMI>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    annotations = detect_annotations(fastq)
+    re_string = construct_transformed_regex(annotations)
+    parser_re = re.compile(re_string)
 
     counter = collections.Counter()
     for read in stream_fastq(fastq):
@@ -679,20 +769,18 @@ def kallisto(fastq, out_dir, cb_histogram, cb_cutoff):
         for cb in cb_set:
             out_handle.write(batchformat.format(**locals()))
 
+
 @click.command()
 @click.argument('sam', required=True)
-@click.option('--umi_only', default=False, is_flag=True,
-              help="only move UMI to tag")
-def bamtag(sam, umi_only):
+def bamtag(sam):
     ''' Convert a BAM/SAM with fastqtransformed read names to have UMI and
     cellular barcode tags
     '''
     from pysam import AlignmentFile
 
-    if umi_only:
-        parser_re = re.compile('.*:UMI_(?P<MB>\w*)')
-    else:
-        parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>\w*)')
+    annotations = detect_annotations(sam)
+    re_string = construct_transformed_regex(annotations)
+    parser_re = re.compile(re_string)
 
     start_time = time.time()
 
@@ -702,21 +790,81 @@ def bamtag(sam, umi_only):
 
     track = sam_file.fetch(until_eof=True)
 
-    for count, aln in enumerate(track):
-        if not count % 100000:
+    for count, aln in enumerate(track, start=1):
+        if count and not count % 100000:
             logger.info("Processed %d alignments." % count)
 
         match = parser_re.match(aln.qname)
         tags = aln.tags
 
-        if not umi_only:
+        if "cellular" in annotations:
             aln.tags += [('XC', match.group('CB'))]
+        if "molecular" in annotations:
+            aln.tags += [('RX', match.group('MB'))]
+        if "sample" in annotations:
+            aln.tags += [('XS', match.group('SB'))]
 
-        aln.tags += [('RX', match.group('MB'))]
         out_file.write(aln)
 
     total_time = time.time() - start_time
     logger.info('BAM tag conversion done - {:.3}s, {:,} alns/min'.format(total_time, int(60. * count / total_time)))
+    logger.info("Processed %d alignments." % count)
+
+@click.command()
+@click.argument('fastq', required=True)
+@click.option('--out_dir', default=".")
+@click.option('--nedit', default=0)
+@click.option('--barcodes', type=click.File('r'), required=False)
+def demultiplex_samples(fastq, out_dir, nedit, barcodes):
+    ''' Demultiplex a fastqtransformed FASTQ file into a FASTQ file for
+    each sample.
+    '''
+    annotations = detect_annotations(fastq)
+    re_string = construct_transformed_regex(annotations)
+    parser_re = re.compile(re_string)
+
+    if barcodes:
+        barcodes = set(barcode.strip() for barcode in barcodes)
+    else:
+        barcodes = set()
+
+    if nedit == 0:
+        filter_bc = partial(exact_sample_filter, barcodes=barcodes)
+    else:
+        barcodehash = MutationHash(barcodes, nedit)
+        filter_bc = partial(correcting_sample_filter, barcodehash=barcodehash)
+
+    sample_set = set()
+    batch = collections.defaultdict(list)
+    parsed = 0
+    safe_makedir(out_dir)
+    for read in read_fastq(fastq):
+        parsed += 1
+        read = filter_bc(read)
+        if not read:
+            continue
+        match = parser_re.search(read).groupdict()
+        sample = match['SB']
+        sample_set.add(sample)
+        batch[sample].append(read)
+        # write in batches to avoid opening up file handles repeatedly
+        if not parsed % 10000000:
+            for sample, reads in batch.items():
+                out_file = os.path.join(out_dir, sample + ".fq")
+                with open(out_file, "a") as out_handle:
+                    for read in reads:
+                        fixed = filter_bc(read)
+                        if fixed:
+                            out_handle.write(fixed)
+            batch = collections.defaultdict(list)
+
+    for sample, reads in batch.items():
+        out_file = os.path.join(out_dir, sample + ".fq")
+        with open(out_file, "a") as out_handle:
+            for read in reads:
+                fixed = filter_bc(read)
+                if fixed:
+                    out_handle.write(read)
 
 @click.group()
 def umis():
@@ -729,3 +877,4 @@ umis.add_command(umi_histogram)
 umis.add_command(cb_filter)
 umis.add_command(kallisto)
 umis.add_command(bamtag)
+umis.add_command(demultiplex_samples)
