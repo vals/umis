@@ -99,6 +99,15 @@ umis bamtag \
 examples/bamtag/bamtag.sam \
 > tests/results/test_bamtag.sam
 
+umis cb_histogram \
+examples/Klein-inDrop/test14.fq \
+> tests/results/test15-cb-histogram.txt
+
+umis cb_histogram \
+--umi_histogram tests/results/test15-mb-histogram.txt \
+examples/Klein-inDrop/test14.fq \
+> tests/results/test15-cb-histogram.txt
+
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
   diff -rq tests/results tests/correct
