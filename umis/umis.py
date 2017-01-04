@@ -116,12 +116,11 @@ def detect_fastq_annotations(fastq_file):
     """
     detects annotations preesent in a FASTQ file by examining the first read
     """
-    annotations = {k: False for k in
-                   BARCODEINFO.keys()}
+    annotations = set()
     queryread = tz.first(read_fastq(fastq_file))
     for k, v in BARCODEINFO.items():
         if v.readprefix in queryread:
-            annotations[k] = True
+            annotations.add(k)
     return annotations
 
 def construct_transformed_regex(annotations):
@@ -591,26 +590,25 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     genes.to_csv(out)
 
 @click.command()
-@click.argument('fastq', type=click.File('r'))
+@click.argument('fastq', required=True)
 @click.option("--umi_histogram", required=False,
               help=("Output a count of each UMI for each cellular barcode to this "
                     "file."))
-
 def cb_histogram(fastq, umi_histogram):
     ''' Counts the number of reads for each cellular barcode
 
     Expects formatted fastq files.
     '''
-    annotations = detect_annotations(fastq)
+    annotations = detect_fastq_annotations(fastq)
     re_string = construct_transformed_regex(annotations)
     parser_re = re.compile(re_string)
 
     cb_counter = collections.Counter()
     umi_counter = collections.Counter()
-    for read in stream_fastq(fastq):
+    for read in read_fastq(fastq):
         match = parser_re.search(read).groupdict()
         cb = match['CB']
-        umi = match['UMI']
+        umi = match['MB']
         cb_counter[cb] += 1
         if umi_histogram:
             umi_counter[(cb, umi)] += 1
