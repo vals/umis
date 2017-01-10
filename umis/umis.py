@@ -82,29 +82,21 @@ def write_fastq(filename):
     return filename_fh
 
 def stream_bamfile(sam):
-    from pysam import AlignmentFile
-    sam_mode = 'r' if sam.endswith(".sam") else 'rb'
-    sam_file = AlignmentFile(sam, mode=sam_mode)
+    sam_file = open_bamfile(sam)
     track = sam_file.fetch(until_eof=True)
     return track
 
-def detect_annotations(filename):
-    """
-    given a transformed FASTQ or SAM file, detect which annotations are present
-    handles SAM/BAM and gzipped FASTQ files
-    """
-    if filename.endswith("sam") or filename.endswith("bam"):
-        return detect_alignment_annotations(filename)
-    else:
-        return detect_fastq_annotations(filename)
+def open_bamfile(sam):
+    from pysam import AlignmentFile
+    sam_mode = 'r' if sam.endswith(".sam") else 'rb'
+    return AlignmentFile(sam, mode=sam_mode)
 
-def detect_alignment_annotations(sam_file):
+def detect_alignment_annotations(queryalignment):
     """
     detects the annotations present in a SAM file, inspecting both the
     tags and the query names returns a set of annotations present
     """
     annotations = set()
-    queryalignment = tz.first(stream_bamfile(sam_file))
     for k, v in BARCODEINFO.items():
         if v.readprefix in queryalignment.qname:
             annotations.add(k)
@@ -154,7 +146,6 @@ def construct_transformed_regex(annotations):
 @click.option('--fastq1out', default=None)
 @click.option('--fastq2out', default=None)
 @click.option('--min_length', default=1, help="Minimum length of read to keep.")
-# @profile
 def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
                    separate_cb, demuxed_cb, cores, fastq1out, fastq2out,
                    min_length):
@@ -628,7 +619,7 @@ def umi_histogram(fastq):
 
     Expects formatted fastq files.
     '''
-    annotations = detect_annotations(fastq)
+    annotations = detect_fastq_annotations(fastq)
     re_string = construct_transformed_regex(annotations)
     parser_re = re.compile(re_string)
 
@@ -776,17 +767,19 @@ def bamtag(sam):
     '''
     from pysam import AlignmentFile
 
-    annotations = detect_annotations(sam)
-    re_string = construct_transformed_regex(annotations)
-    parser_re = re.compile(re_string)
-
     start_time = time.time()
 
-    sam_mode = 'r' if sam.endswith(".sam") else 'rb'
-    sam_file = AlignmentFile(sam, mode=sam_mode)
+    sam_file = open_bamfile(sam)
     out_file = AlignmentFile("-", "wh", template=sam_file)
-
     track = sam_file.fetch(until_eof=True)
+
+    # peek at first alignment to determine the annotations
+    queryalignment = track.next()
+    annotations = detect_alignment_annotations(queryalignment)
+    track = itertools.chain([queryalignment], track)
+
+    re_string = construct_transformed_regex(annotations)
+    parser_re = re.compile(re_string)
 
     for count, aln in enumerate(track, start=1):
         if count and not count % 100000:
@@ -817,7 +810,7 @@ def demultiplex_samples(fastq, out_dir, nedit, barcodes):
     ''' Demultiplex a fastqtransformed FASTQ file into a FASTQ file for
     each sample.
     '''
-    annotations = detect_annotations(fastq)
+    annotations = detect_fastq_annotations(fastq)
     re_string = construct_transformed_regex(annotations)
     parser_re = re.compile(re_string)
 

@@ -2,6 +2,7 @@
 
 - Fix automatic format detection in cb_histogram.
 - Add tests for cb_histogram.
+- Re-enable streaming bamtagging. Thanks to @chapmanb for the suggestion.
 
 ## 0.4.0
 
