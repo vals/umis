@@ -99,6 +99,10 @@ umis bamtag \
 examples/bamtag/bamtag.sam \
 > tests/results/test_bamtag.sam
 
+umis bamtag - < \
+examples/bamtag/bamtag.bam \
+> tests/results/test_streaming_bamtag.sam
+
 umis cb_histogram \
 examples/Klein-inDrop/test14.fq \
 > tests/results/test15-cb-histogram.txt
