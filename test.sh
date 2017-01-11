@@ -99,9 +99,13 @@ umis bamtag \
 examples/bamtag/bamtag.sam \
 > tests/results/test_bamtag.sam
 
+# test streaming bamtag
 umis bamtag - < \
 examples/bamtag/bamtag.bam \
 > tests/results/test_streaming_bamtag.sam
+
+# test conflicting tag/qname annotations
+umis bamtag - < examples/bamtag/bamtag-xstag.bam > tests/results/test-bamtag-xstag.sam
 
 umis cb_histogram \
 examples/Klein-inDrop/test14.fq \

@@ -91,17 +91,19 @@ def open_bamfile(sam):
     sam_mode = 'r' if sam.endswith(".sam") else 'rb'
     return AlignmentFile(sam, mode=sam_mode)
 
-def detect_alignment_annotations(queryalignment):
+def detect_alignment_annotations(queryalignment, tags=False):
     """
-    detects the annotations present in a SAM file, inspecting both the
-    tags and the query names returns a set of annotations present
+    detects the annotations present in a SAM file, inspecting either the
+    tags or the query names and returns a set of annotations present
     """
     annotations = set()
     for k, v in BARCODEINFO.items():
-        if v.readprefix in queryalignment.qname:
-            annotations.add(k)
-        if queryalignment.has_tag(v.bamtag):
-            annotations.add(k)
+        if tags:
+            if queryalignment.has_tag(v.bamtag):
+                annotations.add(k)
+        else:
+            if v.readprefix in queryalignment.qname:
+                annotations.add(k)
     return annotations
 
 def detect_fastq_annotations(fastq_file):
