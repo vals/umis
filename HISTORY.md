@@ -3,6 +3,9 @@
 - Fix automatic format detection in cb_histogram.
 - Add tests for cb_histogram.
 - Re-enable streaming bamtagging. Thanks to @chapmanb for the suggestion.
+- Add subset_bamfile to subset a BAM file to keep alignments with a given set of cellular barcodes.
+- Speed improvements for reading gzipped FASTQ files.
+- Memory usage improvements for tagcount.
 
 ## 0.4.0
 

@@ -10,6 +10,8 @@ import sys
 import logging
 import time
 import multiprocessing
+import tempfile
+from io import BufferedReader
 from functools import partial
 import toolz as tz
 from barcodes import (exact_barcode_filter, correcting_barcode_filter,
@@ -63,7 +65,7 @@ def read_fastq(filename):
     if not filename:
         return itertools.cycle((None,))
     if filename.endswith('gz'):
-        filename_fh = gzip.open(filename, mode='rt')
+        filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
     else:
         filename_fh = open(filename)
     return stream_fastq(filename_fh)
@@ -390,7 +392,6 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex, read4_regex,
                     "'auto' to calculate a cutoff automatically."))
 @click.option('--no_scale_evidence', default=False, is_flag=True)
 @click.option('--subsample', required=False, default=None, type=int)
-# @profile
 def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
              cb_histogram, cb_cutoff, no_scale_evidence, subsample):
     ''' Count up evidence for tagged molecules
@@ -487,13 +488,13 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     current_read = 'none_observed_yet'
     count_this_read = True
     for i, aln in enumerate(track):
-        count += 1
         if count and not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
             logger.info("%d were filtered for being unmapped." % unmapped)
             if filter_cb:
                 logger.info("%d were filtered for not matching known barcodes."
                             % nomatchcb)
+        count += 1
 
         if aln.is_unmapped:
             unmapped += 1
@@ -539,13 +540,16 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * count / tally_time)))
     logger.info('Collapsing evidence')
 
-    buf = StringIO()
-    for key in evidence:
-        line = '{},{}\n'.format(key, evidence[key])
-        buf.write(unicode(line, "utf-8"))
+    logger.info('Writing evidence')
+    with tempfile.NamedTemporaryFile() as out_handle:
+        for key in evidence:
+            line = '{},{}\n'.format(key, evidence[key])
+            out_handle.write(unicode(line, "utf-8"))
+        out_handle.flush()
+        out_handle.seek(0)
+        evidence_table = pd.read_csv(out_handle)
+    del evidence
 
-    buf.seek(0)
-    evidence_table = pd.read_csv(buf)
     evidence_query = 'evidence >= %f' % minevidence
     if positional:
         evidence_table.columns=['cell', 'gene', 'umi', 'pos', 'evidence']
@@ -585,8 +589,8 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 @click.command()
 @click.argument('fastq', required=True)
 @click.option("--umi_histogram", required=False,
-              help=("Output a count of each UMI for each cellular barcode to this "
-                    "file."))
+               help=("Output a count of each UMI for each cellular barcode to this "
+                     "file."))
 def cb_histogram(fastq, umi_histogram):
     ''' Counts the number of reads for each cellular barcode
 
@@ -598,6 +602,7 @@ def cb_histogram(fastq, umi_histogram):
 
     cb_counter = collections.Counter()
     umi_counter = collections.Counter()
+
     for read in read_fastq(fastq):
         match = parser_re.search(read).groupdict()
         cb = match['CB']
@@ -859,6 +864,43 @@ def demultiplex_samples(fastq, out_dir, nedit, barcodes):
                 if fixed:
                     out_handle.write(read)
 
+@click.command()
+@click.argument('SAM', required=True)
+@click.argument('barcodes', type=click.File('r'), required=True)
+def subset_bamfile(sam, barcodes):
+    """
+    Subset a SAM/BAM file, keeping only alignments from given
+    cellular barcodes
+    """
+    from pysam import AlignmentFile
+
+    start_time = time.time()
+
+    sam_file = open_bamfile(sam)
+    out_file = AlignmentFile("-", "wh", template=sam_file)
+    track = sam_file.fetch(until_eof=True)
+
+    # peek at first alignment to determine the annotations
+    queryalignment = track.next()
+    annotations = detect_alignment_annotations(queryalignment)
+    track = itertools.chain([queryalignment], track)
+
+    re_string = construct_transformed_regex(annotations)
+    parser_re = re.compile(re_string)
+    barcodes = set(barcode.strip() for barcode in barcodes)
+
+    for count, aln in enumerate(track, start=1):
+        if count and not count % 100000:
+            logger.info("Processed %d alignments." % count)
+
+        match = parser_re.match(aln.qname)
+        tags = aln.tags
+
+        if "cellular" in annotations:
+            cb = match.group('CB')
+            if cb in barcodes:
+                out_file.write(aln)
+
 @click.group()
 def umis():
     pass
@@ -871,3 +913,4 @@ umis.add_command(cb_filter)
 umis.add_command(kallisto)
 umis.add_command(bamtag)
 umis.add_command(demultiplex_samples)
+umis.add_command(subset_bamfile)
