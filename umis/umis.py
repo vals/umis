@@ -620,7 +620,7 @@ def cb_histogram(fastq, umi_histogram):
                 umi_handle.write('{}\t{}\t{}\n'.format(cbumi[0], cbumi[1], count))
 
 @click.command()
-@click.argument('fastq', type=click.File('r'))
+@click.argument('fastq', required=True)
 def umi_histogram(fastq):
     ''' Counts the number of reads for each UMI
 
@@ -631,9 +631,9 @@ def umi_histogram(fastq):
     parser_re = re.compile(re_string)
 
     counter = collections.Counter()
-    for read in stream_fastq(fastq):
+    for read in read_fastq(fastq):
         match = parser_re.search(read).groupdict()
-        counter[match['UMI']] += 1
+        counter[match['MB']] += 1
 
     for bc, count in counter.most_common():
         sys.stdout.write('{}\t{}\n'.format(bc, count))

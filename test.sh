@@ -116,6 +116,10 @@ umis cb_histogram \
 examples/Klein-inDrop/test14.fq \
 > tests/results/test15-cb-histogram.txt
 
+umis umi_histogram \
+examples/Klein-inDrop/test14.fq \
+> tests/results/test16-umi-histogram.txt
+
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
   diff -rq tests/results tests/correct
