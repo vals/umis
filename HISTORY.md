@@ -1,4 +1,6 @@
-## 0.5.0 (in progress)
+## 0.6.0 (in progress)
+
+## 0.5.0 
 
 - Fix automatic format detection in cb_histogram.
 - Add tests for cb_histogram.
