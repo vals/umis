@@ -547,7 +547,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
             out_handle.write(unicode(line, "utf-8"))
         out_handle.flush()
         out_handle.seek(0)
-        evidence_table = pd.read_csv(out_handle)
+        evidence_table = pd.read_csv(out_handle, header=None)
     del evidence
 
     evidence_query = 'evidence >= %f' % minevidence

@@ -73,7 +73,7 @@ umis fastqtransform \
 examples/paired-with-umi-read/transform.json \
 examples/paired-with-umi-read/fq_1.fq \
 examples/paired-with-umi-read/fq_2.fq \
-examples/paired-with-umi-read/umi.fq 
+examples/paired-with-umi-read/umi.fq
 
 umis fastqtransform \
 examples/SCRB-Seq/transform.json \
@@ -93,7 +93,7 @@ examples/Klein-inDrop/klein-v3_R4.fq \
 umis demultiplex_samples --nedit 1 \
 --barcodes examples/Klein-inDrop/sample-index.txt \
 --out_dir tests/results \
-examples/Klein-inDrop/test14.fq 
+examples/Klein-inDrop/test14.fq
 
 umis bamtag \
 examples/bamtag/bamtag.sam \
@@ -118,7 +118,11 @@ examples/Klein-inDrop/test14.fq \
 
 umis umi_histogram \
 examples/Klein-inDrop/test14.fq \
-> tests/results/test16-umi-histogram.txt
+     > tests/results/test16-umi-histogram.txt
+
+umis tagcount \
+     examples/tagcount/tagcount.sam \
+     tests/results/test17-tagcount.txt
 
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
