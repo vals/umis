@@ -480,6 +480,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
     sam_mode = 'r' if sam.endswith(".sam") else 'rb'
     sam_file = AlignmentFile(sam, mode=sam_mode)
+    targets = [x["SN"] for x in sam_file.header["SQ"]]
     track = sam_file.fetch(until_eof=True)
     count = 0
     unmapped = 0
@@ -569,6 +570,10 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         genes = expanded.ix[genes.index]
 
     else:
+        # make data frame have a complete accounting of transcripts
+        targets = pd.Series(index=set(targets))
+        targets = targets.sort_index()
+        expanded = expanded.reindex(targets.index.values, fill_value=0)
         genes = expanded
 
     genes.replace(pd.np.nan, 0, inplace=True)

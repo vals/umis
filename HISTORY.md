@@ -1,4 +1,7 @@
 ## 0.6.0 (in progress)
+- Fix skipping first piece of evidence when tagcounting.
+- Add test for tagcount.
+- Output full sorted transcript table from tagcount rather than only the observed transcripts.
 
 ## 0.5.0 
 
