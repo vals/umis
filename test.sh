@@ -124,6 +124,11 @@ umis tagcount \
      examples/tagcount/tagcount.sam \
      tests/results/test17-tagcount.txt
 
+umis tagcount \
+     --sparse \
+     examples/tagcount/tagcount.sam \
+     tests/results/test18-tagcount-matrixmarket.txt
+
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
   diff -rq tests/results tests/correct

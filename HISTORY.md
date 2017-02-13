@@ -2,8 +2,9 @@
 - Fix skipping first piece of evidence when tagcounting.
 - Add test for tagcount.
 - Output full sorted transcript table from tagcount rather than only the observed transcripts.
+- Add `--sparse` option to output tagcount matrices in MatrixMarket format.
 
-## 0.5.0 
+## 0.5.0
 
 - Fix automatic format detection in cb_histogram.
 - Add tests for cb_histogram.

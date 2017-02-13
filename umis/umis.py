@@ -18,6 +18,7 @@ from barcodes import (exact_barcode_filter, correcting_barcode_filter,
                       exact_sample_filter, correcting_sample_filter,
                       MutationHash)
 import numpy as np
+import scipy.io, scipy.sparse
 
 import click
 
@@ -392,8 +393,10 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex, read4_regex,
                     "'auto' to calculate a cutoff automatically."))
 @click.option('--no_scale_evidence', default=False, is_flag=True)
 @click.option('--subsample', required=False, default=None, type=int)
+@click.option('--sparse', is_flag=True, default=False,
+              help="Ouput counts in MatrixMarket format.")
 def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
-             cb_histogram, cb_cutoff, no_scale_evidence, subsample):
+             cb_histogram, cb_cutoff, no_scale_evidence, subsample, sparse):
     ''' Count up evidence for tagged molecules
     '''
     from pysam import AlignmentFile
@@ -589,7 +592,13 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         with open(output_evidence_table, 'w') as etab_fh:
             shutil.copyfileobj(buf, etab_fh)
 
-    genes.to_csv(out)
+    if sparse:
+        pd.Series(genes.index).to_csv(out + ".rownames", index=False)
+        pd.Series(genes.columns.values).to_csv(out + ".colnames", index=False)
+        with open(out, "w") as out_handle:
+            scipy.io.mmwrite(out_handle, scipy.sparse.csr_matrix(genes))
+    else:
+        genes.to_csv(out)
 
 @click.command()
 @click.argument('fastq', required=True)
