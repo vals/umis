@@ -14,7 +14,8 @@ import tempfile
 from io import BufferedReader
 from functools import partial
 import toolz as tz
-from barcodes import (exact_barcode_filter, correcting_barcode_filter,
+
+from .barcodes import (exact_barcode_filter, correcting_barcode_filter,
                       exact_sample_filter, correcting_sample_filter,
                       MutationHash)
 import numpy as np
