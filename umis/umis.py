@@ -546,13 +546,15 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     logger.info('Collapsing evidence')
 
     logger.info('Writing evidence')
-    with tempfile.NamedTemporaryFile() as out_handle:
+    with tempfile.NamedTemporaryFile('w+t') as out_handle:
         for key in evidence:
             line = '{},{}\n'.format(key, evidence[key])
-            out_handle.write(unicode(line, "utf-8"))
+            out_handle.write(line)
+
         out_handle.flush()
         out_handle.seek(0)
         evidence_table = pd.read_csv(out_handle, header=None)
+
     del evidence
 
     evidence_query = 'evidence >= %f' % minevidence
@@ -596,10 +598,11 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     if sparse:
         pd.Series(genes.index).to_csv(out + ".rownames", index=False)
         pd.Series(genes.columns.values).to_csv(out + ".colnames", index=False)
-        with open(out, "w") as out_handle:
+        with open(out, "w+b") as out_handle:
             scipy.io.mmwrite(out_handle, scipy.sparse.csr_matrix(genes))
     else:
         genes.to_csv(out)
+
 
 @click.command()
 @click.argument('fastq', required=True)
