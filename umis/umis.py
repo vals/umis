@@ -72,6 +72,15 @@ def read_fastq(filename):
         filename_fh = open(filename)
     return stream_fastq(filename_fh)
 
+def read_cbhistogram(filename):
+    if not filename:
+        return None
+    if filename.endswith('gz'):
+        filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
+    else:
+        filename_fh = open(filename)
+    return filename_fh
+
 def write_fastq(filename):
     """
     return a handle for FASTQ writing, handling gzipped files
@@ -663,7 +672,7 @@ def get_cb_depth_set(cb_histogram, cb_cutoff):
     if not cb_histogram:
         return cb_keep_set
 
-    with open(cb_histogram) as fh:
+    with read_cbhistogram(cb_histogram) as fh:
         cb_map = dict(p.strip().split() for p in fh)
         cb_keep_set = set([k for k, v in cb_map.items() if int(v) > cb_cutoff])
         logger.info('Keeping %d out of %d cellular barcodes.'
@@ -673,7 +682,7 @@ def get_cb_depth_set(cb_histogram, cb_cutoff):
 def guess_depth_cutoff(cb_histogram):
     ''' Guesses at an appropriate barcode cutoff
     '''
-    with open(cb_histogram) as fh:
+    with read_cbhistogram(cb_histogram) as fh:
         cb_vals = [int(p.strip().split()[1]) for p in fh]
     histo = np.histogram(np.log10(cb_vals), bins=50)
     vals = histo[0]

@@ -129,6 +129,18 @@ umis tagcount \
      examples/tagcount/tagcount.sam \
      tests/results/test18-tagcount-matrixmarket.txt
 
+umis tagcount \
+     --cb_cutoff 1 \
+     --cb_histogram examples/tagcount/cb-histogram.txt \
+     examples/tagcount/tagcount.sam \
+     tests/results/test19-tagcount-cbhistogram.txt
+
+umis tagcount \
+     --cb_cutoff 1 \
+     --cb_histogram examples/tagcount/cb-histogram.txt.gz \
+     examples/tagcount/tagcount.sam \
+     tests/results/test20-tagcount-cbhistogram.txt
+
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
   diff -rq tests/results tests/correct

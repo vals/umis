@@ -3,6 +3,7 @@
 - Add test for tagcount.
 - Output full sorted transcript table from tagcount rather than only the observed transcripts.
 - Add `--sparse` option to output tagcount matrices in MatrixMarket format.
+- Allow cb_histogram option to take gzipped files.
 
 ## 0.5.0
 
