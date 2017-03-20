@@ -2,14 +2,14 @@
 
 
 **umis** provides tools for estimating expression in RNA-Seq data which performs
-sequencing of end tags of trancsript, and incorporate molecular tags to
+sequencing of end tags of transcript, and incorporate molecular tags to
 correct for amplification bias.
 
 There are four steps in this process.
 
  1. Formatting reads
  2. Filtering noisy cellular barcodes
- 3. Pseodomapping to cDNAs
+ 3. Pseudo-mapping to cDNAs
  4. Counting molecular identifiers
 
 ## 1. Formatting reads
@@ -18,7 +18,7 @@ We want to strip out all non-biological segments of the sequenced reads for
 the sake of mapping. While also keeping this information for later use. We
 consider non-biological information such as Cellular Barcode and Molecular
 Barcode. To later be able to extract the optional CB and the MB these are put
-in the read header, with the followign format.
+in the read header, with the following format.
 
     @HWI-ST808:130:H0B8YADXX:1:1101:2088:2222:CELL_GGTCCA:UMI_CCCT
     AGGAAGATGGAGGAGAGAAGGCGGTGAAAGAGACCTGTAAAAAGCCACCGN
@@ -38,18 +38,18 @@ command can be used to filter a transformed FASTQ file, dropping unknown
 barcodes. The `--nedit` option can be supplied to correct barcodes `--nedit`
 distance away from known barcodes. After barcode filtering,
 the `umi cb_histogram` command will generate a file of counts for
-each cellular barcode. This file can be used to find a count cutoff for barcodes
+each cellular barcode. This file can be used to find a count cut-off for barcodes
 that are high abundance for downstream quantitation.
 
-## 3. Pseudomapping to cDNAs
+## 3. Pseudo-mapping to cDNAs
 
-This is done by pseduoaligners, either Kallisto or RapMap. The SAM file output
+This is done by pseudo-aligners, either Kallisto or RapMap. The SAM file output
 from these tools need to be saved.
 
 ## 4. Counting molecular identifiers
 
 The final step is to infer which cDNA was the origin of the tag a UMI was
-attached to. We use the pseudoalignments to the cDNAs, and consider a tag
+attached to. We use the pseudo-alignments to the cDNAs, and consider a tag
 assigned to a cDNA as a partial _evidence_ for a (cDNA, UMI) pairing. For
 actual counting, we only count unique UMIs for (gene, UMI) pairings with
 sufficient evidence.
