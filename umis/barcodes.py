@@ -42,6 +42,34 @@ def correcting_barcode_filter(chunk, bc1hash, bc2hash):
             kept.append(read)
     return kept
 
+def exact_sample_filter2(chunk, barcodes):
+    parser_re = re.compile('(.*):CELL_(.*):UMI_(.*):SAMPLE_(?P<SB>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    kept = []
+    for read in chunk:
+        match = parser_re.search(read).groupdict()
+        sample = match['SB']
+        if sample not in barcodes:
+            continue
+        kept.append(read)
+    return kept
+
+def correcting_sample_filter2(chunk, barcodehash):
+    parser_re = re.compile('(.*):CELL_(.*):UMI_(.*):SAMPLE_(?P<SB>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    kept = []
+    for read in chunk:
+        match = parser_re.search(read).groupdict()
+        sample = match['SB']
+        barcodecorrected = barcodehash[sample]
+        if not barcodecorrected:
+            continue
+        correctbc = barcodecorrected
+        if correctbc == match['SB']:
+            kept.append(read)
+        else:
+            read = read.replace("SAMPLE_" + match['SB'], "SAMPLE_" + correctbc)
+            kept.append(read)
+    return kept
+
 def exact_sample_filter(read, barcodes):
     parser_re = re.compile('(.*):CELL_(.*):UMI_(.*):SAMPLE_(?P<SB>.*)\\n(.*)\\n\\+\\n(.*)\\n')
     match = parser_re.search(read).groupdict()
@@ -49,6 +77,32 @@ def exact_sample_filter(read, barcodes):
     if sample not in barcodes:
         return None
     return read
+
+def umi_filter(chunk):
+    parser_re = re.compile('(.*):CELL_(.*):UMI_(?P<MB>.*):SAMPLE_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    kept = []
+    for read in chunk:
+        match = parser_re.search(read).groupdict()
+        MB = match['MB']
+        if not acgt_match(MB):
+            continue
+        else:
+            kept.append(read)
+    return kept
+
+def append_uids(chunk):
+    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(?P<MB>.*):SAMPLE_(?P<SB>.*)\\n(.*)\\n\\+\\n(.*)\\n')
+    kept = []
+    for read in chunk:
+        match = parser_re.search(read).groupdict()
+        CB = match['CB']
+        MB = match['MB']
+        SB = match['SB']
+        sample = "SAMPLE_"+ match['SB']
+        idx = read.find(sample)+len(sample)
+        read = read[:idx]+":UID_" + SB + CB + MB+ read[idx:]
+        kept.append(read)
+    return kept
 
 def correcting_sample_filter(read, barcodehash):
     parser_re = re.compile('(.*):CELL_(.*):UMI_(.*):SAMPLE_(?P<SB>.*)\\n(.*)\\n\\+\\n(.*)\\n')
@@ -114,11 +168,18 @@ def generate_idx(maxlen, nedit):
     this covers all edits < nedit as well since some of the specified
     substitutions will not change the base
     """
-    ALPHABET = ["A", "C", "G", "T"]
+    ALPHABET = ["A", "C", "G", "T", "N"]
     indexlists = []
     ALPHABETS = [ALPHABET for x in range(nedit)]
     return list(itertools.product(itertools.combinations(range(maxlen), nedit),
                                   *ALPHABETS))
+    
+def acgt_match(string):
+    """
+    returns True if sting consist of only "A "C" "G" "T"
+    """
+    search = re.compile(r'[^ACGT]').search
+    return not bool(search(string))
 
 def mutate_string(string, tomutate):
     strlist = list(string)
