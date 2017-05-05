@@ -1,4 +1,4 @@
-This fork add the following functionality to umis
+This fork adds the following functionality to umis
 - sb_filter(fastq, bc, cores, nedit):
     Filters reads with non-matching sample barcodes
     Expects formatted fastq files.
