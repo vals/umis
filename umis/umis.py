@@ -783,7 +783,7 @@ def mb_filter(fastq, cores):
 @click.argument('fastq', type=click.File('r'))
 @click.option('--cores', default=1)
 def add_uid(fastq, cores):
-    ''' Adds UID:[sampebc cellbc umi] to readname for umi-tools deduplication
+    ''' Adds UID:[samplebc cellbc umi] to readname for umi-tools deduplication
     Expects formatted fastq files with correct sample and cell barcodes.
     '''
 
