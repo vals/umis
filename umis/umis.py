@@ -16,8 +16,8 @@ from functools import partial
 import toolz as tz
 
 from .barcodes import (exact_barcode_filter, correcting_barcode_filter,
-                      exact_sample_filter, correcting_sample_filter,
-                      MutationHash)
+                      exact_sample_filter, correcting_sample_filter, exact_sample_filter2
+                      , correcting_sample_filter2, umi_filter, append_uids, MutationHash)
 import numpy as np
 import scipy.io, scipy.sparse
 
@@ -738,6 +738,65 @@ def cb_filter(fastq, bc1, bc2, cores, nedit):
             for read in chunk:
                 sys.stdout.write(read)
 
+@click.command()
+@click.argument('fastq', type=click.File('r'))
+@click.option('--bc', type=click.File('r'))
+@click.option('--cores', default=1)
+@click.option('--nedit', default=0)
+def sb_filter(fastq, bc, cores, nedit):
+    ''' Filters reads with non-matching sample barcodes
+    Expects formatted fastq files.
+    '''
+    barcodes = set(sb.strip() for sb in bc)
+    if nedit == 0:
+        filter_sb = partial(exact_sample_filter2, barcodes=barcodes)
+    else:
+        barcodehash = MutationHash(barcodes, nedit)
+        filter_sb = partial(correcting_sample_filter2, barcodehash=barcodehash)
+    p = multiprocessing.Pool(cores)
+
+    chunks = tz.partition_all(10000, stream_fastq(fastq))
+    bigchunks = tz.partition_all(cores, chunks)
+    for bigchunk in bigchunks:
+        for chunk in p.map(filter_sb, list(bigchunk)):
+            for read in chunk:
+                sys.stdout.write(read)
+                
+@click.command()
+@click.argument('fastq', type=click.File('r'))
+@click.option('--cores', default=1)
+def mb_filter(fastq, cores):
+    ''' Filters umis with non-ACGT bases
+    Expects formatted fastq files.
+    '''
+    filter_mb = partial(umi_filter)
+    p = multiprocessing.Pool(cores)
+
+    chunks = tz.partition_all(10000, stream_fastq(fastq))
+    bigchunks = tz.partition_all(cores, chunks)
+    for bigchunk in bigchunks:
+        for chunk in p.map(filter_mb, list(bigchunk)):
+            for read in chunk:
+                sys.stdout.write(read)
+
+@click.command()
+@click.argument('fastq', type=click.File('r'))
+@click.option('--cores', default=1)
+def add_uid(fastq, cores):
+    ''' Adds UID:[samplebc cellbc umi] to readname for umi-tools deduplication
+    Expects formatted fastq files with correct sample and cell barcodes.
+    '''
+
+    uids = partial(append_uids)
+    p = multiprocessing.Pool(cores)
+
+    chunks = tz.partition_all(10000, stream_fastq(fastq))
+    bigchunks = tz.partition_all(cores, chunks)
+    for bigchunk in bigchunks:
+        for chunk in p.map(uids, list(bigchunk)):
+            for read in chunk:
+                sys.stdout.write(read)
+
 def write_kallisto_chunk(out_dir, cb, chunk):
     fq_fn = os.path.join(out_dir, cb + ".fq")
     umi_fn = os.path.join(out_dir, cb + ".umi")
@@ -937,6 +996,9 @@ umis.add_command(tagcount)
 umis.add_command(cb_histogram)
 umis.add_command(umi_histogram)
 umis.add_command(cb_filter)
+umis.add_command(sb_filter)
+umis.add_command(mb_filter)
+umis.add_command(add_uid)
 umis.add_command(kallisto)
 umis.add_command(bamtag)
 umis.add_command(demultiplex_samples)

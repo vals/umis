@@ -1,3 +1,16 @@
+This fork adds the following functionality to umis
+- sb_filter(fastq, bc, cores, nedit):
+    Filters reads with non-matching sample barcodes
+    Expects formatted fastq files.
+- mb_filter(fastq, cores):
+    Filters umis with non-ACGT bases
+    Expects formatted fastq files
+- add_uid(fastq, cores):
+    Adds unique identifier, UID:[samplebc cellbc umi], to readname for umi-tools deduplication
+    Expects formatted fastq files with correct sample and cell barcodes.
+- barcode hashes additionaly include "N" base so these are now corrected when using edit distances
+
+
 # umis
 
 
