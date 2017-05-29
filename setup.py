@@ -11,7 +11,7 @@ setup(
         version='0.5.0',
         description='Package for estimating UMI counts in Transcript Tag Counting data.',
         packages=find_packages(),
-        install_requires=['click', 'pysam>=0.8.3', 'pandas', 'regex', 'scipy'],
+        install_requires=['click', 'pysam>=0.8.3', 'pandas', 'regex', 'scipy', 'toolz'],
         ext_modules=[ext],
         setup_requires=['cython'],
         entry_points = {
