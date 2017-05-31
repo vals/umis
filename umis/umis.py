@@ -840,7 +840,7 @@ def kallisto(fastq, out_dir, cb_histogram, cb_cutoff):
         if not parsed % 10000000:
             for cb, chunk in cb_batch.items():
                 write_kallisto_chunk(out_dir, cb, chunk)
-            cb_batch = defaultdict(list)
+            cb_batch = collections.defaultdict(list)
 
     for cb, chunk in cb_batch.items():
         write_kallisto_chunk(out_dir, cb, chunk)
