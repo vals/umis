@@ -2,12 +2,12 @@ rm -r tests/results
 mkdir -p tests/results
 
 umis fastqtransform \
-examples/MARS-Seq/transform.json \
+examples/MARS-seq/transform_SRP035326.json \
 examples/MARS-Seq/SRP035326.fastq \
 > tests/results/test01.fq
 
 umis fastqtransform \
-examples/MARS-Seq/transform.json \
+examples/MARS-Seq/transform_SRP035326.json \
 examples/MARS-Seq/SRP035326_5.fastq \
 > tests/results/test02.fq
 
