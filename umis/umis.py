@@ -172,9 +172,15 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
     options = _infer_transform_options(transform)
     read_template = '{name}'
     if options.dual_index:
-        logger.info("Detected dual indexes.")
+        logger.info("Detected dual cellular indexes.")
         if separate_cb:
             read_template += ':CELL_{CB1}-{CB2}'
+        else:
+            read_template += ':CELL_{CB}'
+    elif options.triple_index:
+        logger.info("Detected triple cellular indexes.")
+        if separate_cb:
+            read_template += ':CELL_{CB1}-{CB2}-{CB3}'
         else:
             read_template += ':CELL_{CB}'
     elif options.CB or demuxed_cb:
@@ -287,23 +293,27 @@ def _infer_transform_options(transform):
     regexes for keywords
     """
     TransformOptions = collections.namedtuple("TransformOptions",
-                                              ['CB', 'dual_index', 'MB', 'SB'])
+                                              ['CB', 'dual_index', 'triple_index', 'MB', 'SB'])
     CB = False
-    dual_index = False
     SB = False
-    MB = True
+    MB = False
+    dual_index = False
+    triple_index = False
     for rx in transform.values():
         if not rx:
             continue
         if "CB1" in rx:
-            dual_index = True
+            if "CB3" in rx:
+                triple_index = True
+            else:
+                dual_index = True
         if "SB" in rx:
             SB = True
         if "CB" in rx:
             CB = True
         if "MB" in rx:
             MB = True
-    return TransformOptions(CB=CB, dual_index=dual_index, MB=MB, SB=SB)
+    return TransformOptions(CB=CB, dual_index=dual_index, triple_index=triple_index, MB=MB, SB=SB)
 
 def _extract_readnum(read_dict):
     """Extract read numbers from old-style fastqs.
@@ -709,9 +719,10 @@ def guess_depth_cutoff(cb_histogram):
 @click.argument('fastq', type=click.File('r'))
 @click.option('--bc1', type=click.File('r'))
 @click.option('--bc2', type=click.File('r'), required=False)
+@click.option('--bc3', type=click.File('r'), required=False)
 @click.option('--cores', default=1)
 @click.option('--nedit', default=0)
-def cb_filter(fastq, bc1, bc2, cores, nedit):
+def cb_filter(fastq, bc1, bc2, bc3, cores, nedit):
     ''' Filters reads with non-matching barcodes
     Expects formatted fastq files.
     '''
@@ -719,16 +730,21 @@ def cb_filter(fastq, bc1, bc2, cores, nedit):
     bc1 = set(cb.strip() for cb in bc1)
     if bc2:
         bc2 = set(cb.strip() for cb in bc2)
+    if bc3:
+        bc3 = set(cb.strip() for cb in bc3)
 
     if nedit == 0:
-        filter_cb = partial(exact_barcode_filter, bc1=bc1, bc2=bc2)
+        filter_cb = partial(exact_barcode_filter, bc1=bc1, bc2=bc2, bc3=bc3)
     else:
         bc1hash = MutationHash(bc1, nedit)
         bc2hash = None
+        bc3hash = None
         if bc2:
             bc2hash = MutationHash(bc2, nedit)
+        if bc3:
+            bc3hash = MutationHash(bc3, nedit)
         filter_cb = partial(correcting_barcode_filter, bc1hash=bc1hash,
-                            bc2hash=bc2hash)
+                            bc2hash=bc2hash, bc3hash=bc3hash)
     p = multiprocessing.Pool(cores)
 
     chunks = tz.partition_all(10000, stream_fastq(fastq))
@@ -761,7 +777,7 @@ def sb_filter(fastq, bc, cores, nedit):
         for chunk in p.map(filter_sb, list(bigchunk)):
             for read in chunk:
                 sys.stdout.write(read)
-                
+
 @click.command()
 @click.argument('fastq', type=click.File('r'))
 @click.option('--cores', default=1)
