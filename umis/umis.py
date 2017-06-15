@@ -291,7 +291,7 @@ def _infer_transform_options(transform):
     CB = False
     dual_index = False
     SB = False
-    MB = True
+    MB = False
     for rx in transform.values():
         if not rx:
             continue
