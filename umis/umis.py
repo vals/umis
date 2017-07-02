@@ -172,9 +172,15 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
     options = _infer_transform_options(transform)
     read_template = '{name}'
     if options.dual_index:
-        logger.info("Detected dual indexes.")
+        logger.info("Detected dual cellular indexes.")
         if separate_cb:
             read_template += ':CELL_{CB1}-{CB2}'
+        else:
+            read_template += ':CELL_{CB}'
+    elif options.triple_index:
+        logger.info("Detected triple cellular indexes.")
+        if separate_cb:
+            read_template += ':CELL_{CB1}-{CB2}-{CB3}'
         else:
             read_template += ':CELL_{CB}'
     elif options.CB or demuxed_cb:
@@ -287,23 +293,27 @@ def _infer_transform_options(transform):
     regexes for keywords
     """
     TransformOptions = collections.namedtuple("TransformOptions",
-                                              ['CB', 'dual_index', 'MB', 'SB'])
+                                              ['CB', 'dual_index', 'triple_index', 'MB', 'SB'])
     CB = False
-    dual_index = False
     SB = False
     MB = False
+    dual_index = False
+    triple_index = False
     for rx in transform.values():
         if not rx:
             continue
         if "CB1" in rx:
-            dual_index = True
+            if "CB3" in rx:
+                triple_index = True
+            else:
+                dual_index = True
         if "SB" in rx:
             SB = True
         if "CB" in rx:
             CB = True
         if "MB" in rx:
             MB = True
-    return TransformOptions(CB=CB, dual_index=dual_index, MB=MB, SB=SB)
+    return TransformOptions(CB=CB, dual_index=dual_index, triple_index=triple_index, MB=MB, SB=SB)
 
 def _extract_readnum(read_dict):
     """Extract read numbers from old-style fastqs.
@@ -761,7 +771,7 @@ def sb_filter(fastq, bc, cores, nedit):
         for chunk in p.map(filter_sb, list(bigchunk)):
             for read in chunk:
                 sys.stdout.write(read)
-                
+
 @click.command()
 @click.argument('fastq', type=click.File('r'))
 @click.option('--cores', default=1)
