@@ -2,28 +2,34 @@ import regex as re
 import itertools
 from collections import defaultdict
 
-def exact_barcode_filter(chunk, bc1, bc2):
+def exact_barcode_filter(chunk, bc1, bc2, bc3):
     parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
     kept = []
     for read in chunk:
         match = parser_re.search(read).groupdict()
         cb1 = match['CB']
-        if bc2:
+        if bc3:
+            cb1, cb2, cb3 = cb1.split("-")
+        elif bc2:
             cb1, cb2 = cb1.split("-")
         if cb1 not in bc1:
             continue
         if bc2 and cb2 not in bc2:
             continue
+        if bc3 and cb3 not in bc3:
+            continue
         kept.append(read)
     return kept
 
-def correcting_barcode_filter(chunk, bc1hash, bc2hash):
+def correcting_barcode_filter(chunk, bc1hash, bc2hash, bc3hash):
     parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
     kept = []
     for read in chunk:
         match = parser_re.search(read).groupdict()
         cb1 = match['CB']
-        if bc2hash:
+        if bc3hash:
+            cb1, cb2, cb3 = cb1.split("-")
+        elif bc2hash:
             cb1, cb2 = cb1.split("-")
         bc1corrected = bc1hash[cb1]
         if not bc1corrected:
@@ -32,6 +38,13 @@ def correcting_barcode_filter(chunk, bc1hash, bc2hash):
             bc2corrected = bc2hash[cb2]
             if not bc2corrected:
                 continue
+        if bc3hash:
+            bc3corrected = bc3hash[cb3]
+            if not bc3corrected:
+                continue
+        if bc3hash:
+            correctbc = bc1corrected + "-" + bc2corrected + "-" + bc3corrected
+        elif bc2hash:
             correctbc = bc1corrected + "-" + bc2corrected
         else:
             correctbc = bc1corrected
@@ -173,7 +186,7 @@ def generate_idx(maxlen, nedit):
     ALPHABETS = [ALPHABET for x in range(nedit)]
     return list(itertools.product(itertools.combinations(range(maxlen), nedit),
                                   *ALPHABETS))
-    
+
 def acgt_match(string):
     """
     returns True if sting consist of only "A "C" "G" "T"
