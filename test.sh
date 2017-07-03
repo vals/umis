@@ -139,7 +139,22 @@ umis tagcount \
      --cb_cutoff 1 \
      --cb_histogram examples/tagcount/cb-histogram.txt.gz \
      examples/tagcount/tagcount.sam \
-     tests/results/test20-tagcount-cbhistogram.txt
+    tests/results/test20-tagcount-cbhistogram.txt
+
+umis fastqtransform \
+--separate_cb \
+examples/SureCell/transform.json \
+examples/SureCell/K562_R1.fastq \
+examples/SureCell/K562_R2.fastq \
+> tests/results/test21.fq
+
+umis cb_filter \
+     --nedit 1 \
+     --bc1 examples/SureCell/barcodes.txt \
+     --bc2 examples/SureCell/barcodes.txt \
+     --bc3 examples/SureCell/barcodes.txt \
+     tests/results/test21.fq \
+     > tests/results/test21-filtered.fq
 
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
