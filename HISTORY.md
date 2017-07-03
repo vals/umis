@@ -3,7 +3,10 @@
 - Add test for tagcount.
 - Output full sorted transcript table from tagcount rather than only the observed transcripts.
 - Add `--sparse` option to output tagcount matrices in MatrixMarket format.
-- Allow cb_histogram option to take gzipped files.
+- Allow cb_histogram subcommand to take gzipped files.
+- Allow cb_filter subcommand to take gzipped files.
+- Add support for triple-cellular barcodes.
+- Add example for Illumina SureCell (https://www.illumina.com/products/by-type/sequencing-kits/library-prep-kits/surecell-wta-ddseq.html)
 
 ## 0.5.0
 
