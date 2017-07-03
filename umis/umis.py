@@ -716,7 +716,7 @@ def guess_depth_cutoff(cb_histogram):
         return cutoff
 
 @click.command()
-@click.argument('fastq', type=click.File('r'))
+@click.argument('fastq', required=True)
 @click.option('--bc1', type=click.File('r'))
 @click.option('--bc2', type=click.File('r'), required=False)
 @click.option('--bc3', type=click.File('r'), required=False)
@@ -747,7 +747,7 @@ def cb_filter(fastq, bc1, bc2, bc3, cores, nedit):
                             bc2hash=bc2hash, bc3hash=bc3hash)
     p = multiprocessing.Pool(cores)
 
-    chunks = tz.partition_all(10000, stream_fastq(fastq))
+    chunks = tz.partition_all(10000, read_fastq(fastq))
     bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(filter_cb, list(bigchunk)):
