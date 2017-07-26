@@ -1,4 +1,5 @@
 ## 0.7.0 (in progress)
+- Fix for kallisto output failing due to defaultdict not being imported. Thanks to @andreas-wilm for the fix.
 
 ## 0.6.0
 - Fix skipping first piece of evidence when tagcounting.
