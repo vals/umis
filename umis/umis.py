@@ -425,8 +425,14 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex, read4_regex,
                 help=('Parse BAM tags in stead of read name. In this mode '
                       'the optional tags UM and CR will be used for UMI and '
                       'cell barcode, respetively.'))
+@click.option('--gene_tags', required=False, is_flag=True,
+                help=('Use the optional TX and GX tags in the BAM file to '
+                      'read gene mapping information in stead of the mapping '
+                      'target nane. Useful if e.g. reads have been mapped to '
+                      'genome in stead of transcriptome.'))
 def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
-             cb_histogram, cb_cutoff, no_scale_evidence, subsample, sparse, parse_tags):
+             cb_histogram, cb_cutoff, no_scale_evidence, subsample, sparse,
+             parse_tags, gene_tags):
     ''' Count up evidence for tagged molecules
     '''
     from pysam import AlignmentFile
@@ -538,6 +544,10 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
             unmapped += 1
             continue
 
+        if gene_tags and not aln.has_tag('GX'):
+            unmapped += 1
+            continue
+
         if aln.qname != current_read:
             current_read = aln.qname
             if subsample and i not in index_filter:
@@ -565,12 +575,15 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         else:
             MB = match.group('MB')
 
-        txid = sam_file.getrname(aln.reference_id)
-        if gene_map:
-            target_name = gene_map[txid]
-
+        if gene_tags:
+            target_name = aln.get_tag('GX').split(',')[0]
         else:
-            target_name = txid
+            txid = sam_file.getrname(aln.reference_id)
+            if gene_map:
+                target_name = gene_map[txid]
+
+            else:
+                target_name = txid
 
         e_tuple = tuple_template.format(CB, target_name, aln.pos, MB)
 
@@ -579,6 +592,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
             evidence[e_tuple] += 1.0
         else:
             evidence[e_tuple] += weigh_evidence(aln.tags)
+
         kept += 1
 
     tally_time = time.time() - start_tally
@@ -593,6 +607,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
         out_handle.flush()
         out_handle.seek(0)
+
         evidence_table = pd.read_csv(out_handle, header=None)
 
     del evidence
@@ -615,6 +630,10 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         # Now genes is assigned to a DataFrame
         genes = expanded.ix[genes.index]
 
+    elif gene_tags:
+        expanded.sort_index()
+        genes = expanded
+
     else:
         # make data frame have a complete accounting of transcripts
         targets = pd.Series(index=set(targets))
@@ -622,7 +641,8 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         expanded = expanded.reindex(targets.index.values, fill_value=0)
         genes = expanded
 
-    genes.replace(pd.np.nan, 0, inplace=True)
+    genes.fillna(0, inplace=True)
+    genes = genes.astype(int)
 
     logger.info('Output results')
 
