@@ -403,11 +403,17 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex, read4_regex,
 @click.command()
 @click.argument('sam')
 @click.argument('out')
-@click.option('--genemap', required=False, default=None)
+@click.option('--genemap', required=False, default=None,
+                help=('A TSV file mapping transcript ids to gene ids. If '
+                      'provided expression will be summarised to gene level '
+                      '(recommended).'))
 @click.option('--output_evidence_table', default=None)
 @click.option('--positional', default=False, is_flag=True)
 @click.option('--minevidence', required=False, default=1.0, type=float)
-@click.option('--cb_histogram', default=None)
+@click.option('--cb_histogram', default=None,
+                help=('A TSV file with CBs and a count. If the counts are '
+                      'are the number of reads at a CB, the cb_cutoff option '
+                      'can be used to filter out CBs to be counted.'))
 @click.option('--cb_cutoff', default=None,
               help=("Number of counts to filter cellular barcodes. Set to "
                     "'auto' to calculate a cutoff automatically."))
