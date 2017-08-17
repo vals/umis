@@ -50,13 +50,13 @@ will be barcodes that don't come from a set of known barcodes. The `umi cb_filte
 command can be used to filter a transformed FASTQ file, dropping unknown
 barcodes. The `--nedit` option can be supplied to correct barcodes `--nedit`
 distance away from known barcodes. After barcode filtering,
-the `umi cb_histogram` command will generate a file of counts for
+the `umis cb_histogram` command will generate a file of counts for
 each cellular barcode. This file can be used to find a count cut-off for barcodes
 that are high abundance for downstream quantitation.
 
 ## 3. Pseudo-mapping to cDNAs
 
-This is done by pseudo-aligners, either Kallisto or RapMap. The SAM file output
+This is done by pseudo-aligners, either Kallisto or RapMap. The SAM (or BAM) file output
 from these tools need to be saved.
 
 ## 4. Counting molecular identifiers
@@ -66,6 +66,12 @@ attached to. We use the pseudo-alignments to the cDNAs, and consider a tag
 assigned to a cDNA as a partial _evidence_ for a (cDNA, UMI) pairing. For
 actual counting, we only count unique UMIs for (gene, UMI) pairings with
 sufficient evidence.
+
+To count, use the command `umis tagcount`. This requires a SAM or BAM file as input.
+
+By default, the read name will be used to cell barcodes and UMI sequences. Optionally,
+when using the `--parse_tags` option, the `CR` and `UM` bam tags will be used to
+extract the cell barcode and UMI, respectively.
 
 ## kallisto
 The quantitation used in `umis` handles reads that could come from multiple
