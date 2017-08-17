@@ -74,7 +74,7 @@ when using the `--parse_tags` option, the `CR` and `UM` bam tags will be used to
 extract the cell barcode and UMI, respectively.
 
 The recommended workflow is to map reads to cDNA, in which case the target name in the BAM
-will be a transcript ID. If the BAM has been mapped to a genome e.g. with STAR, `tagcount`
+will be a transcript ID. If the BAM has been mapped to a genome (e.g. with STAR) `tagcount`
 can use the optional `GX` BAM tag to get the gene name. In this case, use the option `--gene_tags`.
 
 ## kallisto
