@@ -415,14 +415,18 @@ def transformer(chunk, read1_regex, read2_regex, read3_regex, read4_regex,
                       'are the number of reads at a CB, the cb_cutoff option '
                       'can be used to filter out CBs to be counted.'))
 @click.option('--cb_cutoff', default=None,
-              help=("Number of counts to filter cellular barcodes. Set to "
-                    "'auto' to calculate a cutoff automatically."))
+                help=("Number of counts to filter cellular barcodes. Set to "
+                      "'auto' to calculate a cutoff automatically."))
 @click.option('--no_scale_evidence', default=False, is_flag=True)
 @click.option('--subsample', required=False, default=None, type=int)
 @click.option('--sparse', is_flag=True, default=False,
-              help="Ouput counts in MatrixMarket format.")
+                help="Ouput counts in MatrixMarket format.")
+@click.option('--parse_tags', required=False, is_flag=True,
+                help=('Parse BAM tags in stead of read name. In this mode '
+                      'the optional tags UM and CR will be used for UMI and '
+                      'cell barcode, respetively.'))
 def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
-             cb_histogram, cb_cutoff, no_scale_evidence, subsample, sparse):
+             cb_histogram, cb_cutoff, no_scale_evidence, subsample, sparse, parse_tags):
     ''' Count up evidence for tagged molecules
     '''
     from pysam import AlignmentFile
@@ -482,8 +486,12 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
                 continue
 
             current_read = aln.qname
-            match = parser_re.match(aln.qname)
-            CB = match.group('CB')
+
+            if parse_tags:
+                CB = aln.get_tag('CR')
+            else:
+                match = parser_re.match(aln.qname)
+                CB = match.group('CB')
 
             if CB not in cb_hist.index:
                 continue
@@ -541,14 +549,21 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
             if not count_this_read:
                 continue
 
-        match = parser_re.match(aln.qname)
-        CB = match.group('CB')
+        if parse_tags:
+            CB = aln.get_tag('CR')
+        else:
+            match = parser_re.match(aln.qname)
+            CB = match.group('CB')
+
         if filter_cb:
             if CB not in cb_hist.index:
                 nomatchcb += 1
                 continue
 
-        MB = match.group('MB')
+        if parse_tags:
+            MB = aln.get_tag('UM')
+        else:
+            MB = match.group('MB')
 
         txid = sam_file.getrname(aln.reference_id)
         if gene_map:
