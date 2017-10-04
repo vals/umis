@@ -531,6 +531,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     nomatchcb = 0
     current_read = 'none_observed_yet'
     count_this_read = True
+    missing_transcripts = set()
     for i, aln in enumerate(track):
         if count and not count % 100000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
@@ -580,8 +581,11 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         else:
             txid = sam_file.getrname(aln.reference_id)
             if gene_map:
-                target_name = gene_map[txid]
-
+                if txid in gene_map:
+                    target_name = gene_map[txid]
+                else:
+                    missing_transcripts.add(txid)
+                    target_name = txid
             else:
                 target_name = txid
 
@@ -596,6 +600,8 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         kept += 1
 
     tally_time = time.time() - start_tally
+    if missing_transcripts:
+        logger.warn('The following transcripts were missing gene_ids, so we added them as the transcript ids: %s' % str(missing_transcripts))
     logger.info('Tally done - {:.3}s, {:,} alns/min'.format(tally_time, int(60. * count / tally_time)))
     logger.info('Collapsing evidence')
 
