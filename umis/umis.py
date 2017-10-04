@@ -533,7 +533,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     count_this_read = True
     missing_transcripts = set()
     for i, aln in enumerate(track):
-        if count and not count % 100000:
+        if count and not count % 1000000:
             logger.info("Processed %d alignments, kept %d." % (count, kept))
             logger.info("%d were filtered for being unmapped." % unmapped)
             if filter_cb:
@@ -938,7 +938,7 @@ def bamtag(sam):
     parser_re = re.compile(re_string)
 
     for count, aln in enumerate(track, start=1):
-        if count and not count % 100000:
+        if count and not count % 1000000:
             logger.info("Processed %d alignments." % count)
 
         match = parser_re.match(aln.qname)
@@ -1039,7 +1039,7 @@ def subset_bamfile(sam, barcodes):
     barcodes = set(barcode.strip() for barcode in barcodes)
 
     for count, aln in enumerate(track, start=1):
-        if count and not count % 100000:
+        if count and not count % 1000000:
             logger.info("Processed %d alignments." % count)
 
         match = parser_re.match(aln.qname)
