@@ -6,6 +6,7 @@
 - Add `sparse` subcommand to turn a matrix into a sparse matrix.
 - Add `fasttagcount` subcommand. This assumes the input BAM/SAM file is coordinate sorted. Reduces memory usage by over
   100x and runtime by 30-40% for deep samples.
+- Warn, don't fail if transcripts are missing from the genemap. 
 
 ## 0.6.0
 - Fix skipping first piece of evidence when tagcounting.
