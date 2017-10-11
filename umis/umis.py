@@ -649,6 +649,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 
     genes.fillna(0, inplace=True)
     genes = genes.astype(int)
+    genes.index.name = "gene"
 
     logger.info('Output results')
 
@@ -669,6 +670,261 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     else:
         genes.to_csv(out)
 
+@click.command()
+@click.argument('sam')
+@click.argument('out')
+@click.option('--genemap', required=False, default=None,
+                help=('A TSV file mapping transcript ids to gene ids. If '
+                      'provided expression will be summarised to gene level '
+                      '(recommended).'))
+@click.option('--positional', default=False, is_flag=True)
+@click.option('--minevidence', required=False, default=1.0, type=float)
+@click.option('--cb_histogram', default=None,
+                help=('A TSV file with CBs and a count. If the counts are '
+                      'are the number of reads at a CB, the cb_cutoff option '
+                      'can be used to filter out CBs to be counted.'))
+@click.option('--cb_cutoff', default=None,
+                help=("Number of counts to filter cellular barcodes. Set to "
+                      "'auto' to calculate a cutoff automatically."))
+@click.option('--no_scale_evidence', default=False, is_flag=True)
+@click.option('--subsample', required=False, default=None, type=int)
+@click.option('--parse_tags', required=False, is_flag=True,
+                help=('Parse BAM tags in stead of read name. In this mode '
+                      'the optional tags UM and CR will be used for UMI and '
+                      'cell barcode, respetively.'))
+@click.option('--gene_tags', required=False, is_flag=True,
+                help=('Use the optional TX and GX tags in the BAM file to '
+                      'read gene mapping information in stead of the mapping '
+                      'target nane. Useful if e.g. reads have been mapped to '
+                      'genome in stead of transcriptome.'))
+def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram, 
+                 cb_cutoff, no_scale_evidence, subsample, parse_tags, gene_tags):
+    ''' Count up evidence for tagged molecules, this implementation assumes the
+    alignment file is coordinate sorted
+    '''
+    from pysam import AlignmentFile
+
+    from io import StringIO
+    import pandas as pd
+
+    from utils import weigh_evidence
+
+    logger.info('Reading optional files')
+
+    gene_map = None
+    if genemap:
+        with open(genemap) as fh:
+            try:
+                gene_map = dict(p.strip().split() for p in fh)
+            except ValueError:
+                logger.error('Incorrectly formatted gene_map, need to be tsv.')
+                sys.exit()
+
+    if positional:
+        tuple_template = '{0},{1},{2},{3}'
+    else:
+        tuple_template = '{0},{1},{3}'
+
+    if not cb_cutoff:
+        cb_cutoff = 0
+
+    if cb_histogram and cb_cutoff == "auto":
+        cb_cutoff = guess_depth_cutoff(cb_histogram)
+
+    cb_cutoff = int(cb_cutoff)
+
+    cb_hist = None
+    filter_cb = False
+    if cb_histogram:
+        cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, squeeze=True)
+        total_num_cbs = cb_hist.shape[0]
+        cb_hist = cb_hist[cb_hist > cb_cutoff]
+        logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
+        filter_cb = True
+
+    parser_re = re.compile('.*:CELL_(?P<CB>.*):UMI_(?P<MB>.*)')
+
+    if subsample:
+        logger.info('Creating reservoir of subsampled reads ({} per cell)'.format(subsample))
+        start_sampling  = time.time()
+
+        reservoir = collections.defaultdict(list)
+        cb_hist_sampled = 0 * cb_hist
+        cb_obs = 0 * cb_hist
+
+        track = stream_bamfile(sam)
+        current_read = 'none_observed_yet'
+        for i, aln in enumerate(track):
+            if aln.qname == current_read:
+                continue
+
+            current_read = aln.qname
+
+            if parse_tags:
+                CB = aln.get_tag('CR')
+            else:
+                match = parser_re.match(aln.qname)
+                CB = match.group('CB')
+
+            if CB not in cb_hist.index:
+                continue
+
+            cb_obs[CB] += 1
+            if len(reservoir[CB]) < subsample:
+                reservoir[CB].append(i)
+                cb_hist_sampled[CB] += 1
+            else:
+                s = pd.np.random.randint(0, cb_obs[CB])
+                if s < subsample:
+                    reservoir[CB][s] = i
+
+        index_filter = set(itertools.chain.from_iterable(reservoir.values()))
+        sam_file.close()
+        sampling_time = time.time() - start_sampling
+        logger.info('Sampling done - {:.3}s'.format(sampling_time))
+
+    evidence = collections.defaultdict(lambda: collections.defaultdict(int))
+    logger.info('Tallying evidence')
+    start_tally = time.time()
+
+    sam_mode = 'r' if sam.endswith(".sam") else 'rb'
+    sam_file = AlignmentFile(sam, mode=sam_mode)
+    targets = [x["SN"] for x in sam_file.header["SQ"]]
+    missing_transcripts = set()
+    if gene_map:
+        genes = set()
+        for txid in targets:
+            if txid in gene_map:
+                genes.add(gene_map[txid])
+            else:
+                genes.add(txid)
+        targets = genes
+    track = sam_file.fetch(until_eof=True)
+    count = 0
+    unmapped = 0
+    kept = 0
+    nomatchcb = 0
+    current_read = 'none_observed_yet'
+    current_transcript = None
+    count_this_read = True
+    transcripts_processed = 0
+    cells = list(cb_hist.index)
+    targets_seen = set()
+
+    with open(out, "w") as out_handle:
+        out_handle.write(",".join(["gene"] + cells) + "\n")
+        for i, aln in enumerate(track):
+            if count and not count % 1000000:
+                logger.info("Processed %d alignments, kept %d." % (count, kept))
+                logger.info("%d were filtered for being unmapped." % unmapped)
+                if filter_cb:
+                    logger.info("%d were filtered for not matching known barcodes."
+                                % nomatchcb)
+            count += 1
+
+            if aln.is_unmapped:
+                unmapped += 1
+                continue
+
+            if gene_tags and not aln.has_tag('GX'):
+                unmapped += 1
+                continue
+
+            if aln.qname != current_read:
+                current_read = aln.qname
+                if subsample and i not in index_filter:
+                    count_this_read = False
+                    continue
+                else:
+                    count_this_read = True
+            else:
+                if not count_this_read:
+                    continue
+
+            if parse_tags:
+                CB = aln.get_tag('CR')
+            else:
+                match = parser_re.match(aln.qname)
+                CB = match.group('CB')
+
+            if filter_cb:
+                if CB not in cb_hist.index:
+                    nomatchcb += 1
+                    continue
+
+            if parse_tags:
+                MB = aln.get_tag('UM')
+            else:
+                MB = match.group('MB')
+
+            if gene_tags:
+                target_name = aln.get_tag('GX').split(',')[0]
+            else:
+                txid = sam_file.getrname(aln.reference_id)
+                if gene_map:
+                    if txid in gene_map:
+                        target_name = gene_map[txid]
+                    else:
+                        missing_transcripts.add(txid)
+                        target_name = txid
+                else:
+                    target_name = txid
+            targets_seen.add(target_name)
+
+            if not current_transcript:
+                current_transcript = target_name
+
+            if current_transcript != target_name:
+                transcripts_processed += 1
+                earray = []
+                for cell in cells:
+                    umis = [1 for _, v in evidence[cell].items() if v >= minevidence]
+                    earray.append(str(sum(umis)))
+                out_handle.write(",".join([target_name] + earray) + "\n")
+                current_transcript = target_name
+                evidence = collections.defaultdict(lambda: collections.defaultdict(int))
+                if not transcripts_processed % 1000:
+                    logger.info("%d transcripts processed." % transcripts_processed)
+
+            # Scale evidence by number of hits
+            if no_scale_evidence:
+                evidence[CB][MB] += 1.0
+            else:
+                evidence[CB][MB] += weigh_evidence(aln.tags)
+            kept += 1
+
+        # write out last seen transcript of evidence
+        earray = []
+        for cell in cells:
+            umis = [1 for _, v in evidence[cell].items() if v >= minevidence]
+            earray.append(str(sum(umis)))
+        out_handle.write(",".join([target_name] + earray) + "\n")
+
+        # record zeros so we have a complete table
+        for target in set(targets).difference(targets_seen):
+            earray = []
+            for cell in cells:
+                earray.append("0")
+            out_handle.write(",".join([target] + earray) + "\n")
+
+    # sort index
+    df = pd.read_csv(out, index_col=0, header=0)
+    df = df.sort_index()
+    df.to_csv(out)
+
+
+@click.command()
+@click.argument("csv")
+@click.argument("sparse")
+def sparse(csv, sparse):
+    ''' Convert a CSV file to a sparse matrix with rows and column names
+    saved as companion files.
+    '''
+    df = pd.read_csv(csv, index_col=0, header=0)
+    pd.Series(df.index).to_csv(sparse + ".rownames", index=False)
+    pd.Series(df.columns.values).to_csv(sparse + ".colnames", index=False)
+    with open(sparse, "w+b") as out_handle:
+        scipy.io.mmwrite(out_handle, scipy.sparse.csr_matrix(df))
 
 @click.command()
 @click.argument('fastq', required=True)
@@ -1054,8 +1310,10 @@ def subset_bamfile(sam, barcodes):
 def umis():
     pass
 
+umis.add_command(sparse)
 umis.add_command(fastqtransform)
 umis.add_command(tagcount)
+umis.add_command(fasttagcount)
 umis.add_command(cb_histogram)
 umis.add_command(umi_histogram)
 umis.add_command(cb_filter)

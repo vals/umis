@@ -1,0 +1,2 @@
+gene,GATAACCATC-GTTACCGC
+gene1,2

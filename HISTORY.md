@@ -2,6 +2,10 @@
 - Fix for kallisto output failing due to defaultdict not being imported. Thanks to @andreas-wilm for the fix.
 - Added `tagcount` option `--parse_tags` to use BAM tags rather than parsing read names (`UM` for UMI, `CR` for cell barcode)
 - Added `tagcount` option `--gene_tags` to use BAM tags to get ID of mapping gene (`GX` tag).
+- Fix tagcount with `--genemap` option not including a column name for the index.
+- Add `sparse` subcommand to turn a matrix into a sparse matrix.
+- Add `fasttagcount` subcommand. This assumes the input BAM/SAM file is coordinate sorted. Reduces memory usage by over
+  100x and runtime by 30-40% for deep samples.
 
 ## 0.6.0
 - Fix skipping first piece of evidence when tagcounting.

@@ -2,7 +2,7 @@ rm -r tests/results
 mkdir -p tests/results
 
 umis fastqtransform \
-examples/MARS-seq/transform_SRP035326.json \
+examples/MARS-Seq/transform_SRP035326.json \
 examples/MARS-Seq/SRP035326.fastq \
 > tests/results/test01.fq
 
@@ -43,7 +43,7 @@ examples/STRT-Seq/SRP045452_1772058148_A01.fastq \
 
 umis fastqtransform \
 --demuxed_cb CACTGT \
-examples/BATSeq/transform.json \
+examples/BATseq/transform.json \
 examples/BATseq/SRR1558183_1.fastq \
 examples/BATseq/SRR1558183_2.fastq \
 > tests/results/test08.fq
@@ -141,6 +141,7 @@ umis tagcount \
      examples/tagcount/tagcount.sam \
     tests/results/test20-tagcount-cbhistogram.txt
 
+
 umis fastqtransform \
 --separate_cb \
 examples/SureCell/transform.json \
@@ -155,6 +156,26 @@ umis cb_filter \
      --bc3 examples/SureCell/barcodes.txt \
      tests/results/test21.fq \
      > tests/results/test21-filtered.fq
+
+umis fasttagcount \
+     --cb_cutoff 1 \
+     --cb_histogram examples/tagcount/cb-histogram.txt.gz \
+     examples/tagcount/tagcount.sam \
+    tests/results/test22-fasttagcount-cbhistogram.txt
+
+umis tagcount \
+     --genemap examples/tagcount/gene-map.tsv \
+     --cb_cutoff 1 \
+     --cb_histogram examples/tagcount/cb-histogram.txt.gz \
+     examples/tagcount/tagcount.sam \
+    tests/results/test23-tagcount-cbhistogram-genemap.txt
+
+umis fasttagcount \
+     --genemap examples/tagcount/gene-map.tsv \
+     --cb_cutoff 1 \
+     --cb_histogram examples/tagcount/cb-histogram.txt.gz \
+     examples/tagcount/tagcount.sam \
+    tests/results/test24-fasttagcount-cbhistogram-genemap.txt
 
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
