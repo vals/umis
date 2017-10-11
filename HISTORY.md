@@ -1,4 +1,4 @@
-## 0.7.0 (in progress)
+## 0.7.0
 - Fix for kallisto output failing due to defaultdict not being imported. Thanks to @andreas-wilm for the fix.
 - Added `tagcount` option `--parse_tags` to use BAM tags rather than parsing read names (`UM` for UMI, `CR` for cell barcode)
 - Added `tagcount` option `--gene_tags` to use BAM tags to get ID of mapping gene (`GX` tag).
