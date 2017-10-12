@@ -1,3 +1,6 @@
+## 0.8.0 (in progress)
+- Add `version` subcommand.
+
 ## 0.7.0
 - Fix for kallisto output failing due to defaultdict not being imported. Thanks to @andreas-wilm for the fix.
 - Added `tagcount` option `--parse_tags` to use BAM tags rather than parsing read names (`UM` for UMI, `CR` for cell barcode)

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import os
 import itertools
 import collections
@@ -22,6 +24,8 @@ import numpy as np
 import scipy.io, scipy.sparse
 
 import click
+
+VERSION = "0.8.0a"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1306,10 +1310,15 @@ def subset_bamfile(sam, barcodes):
             if cb in barcodes:
                 out_file.write(aln)
 
+@click.command()
+def version():
+    print(VERSION)
+
 @click.group()
 def umis():
     pass
 
+umis.add_command(version)
 umis.add_command(sparse)
 umis.add_command(fastqtransform)
 umis.add_command(tagcount)
