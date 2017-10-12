@@ -22,7 +22,6 @@ from .barcodes import (exact_barcode_filter, correcting_barcode_filter,
                       , correcting_sample_filter2, umi_filter, append_uids, MutationHash)
 import numpy as np
 import scipy.io, scipy.sparse
-
 import click
 
 VERSION = "0.8.0a"
@@ -924,6 +923,7 @@ def sparse(csv, sparse):
     ''' Convert a CSV file to a sparse matrix with rows and column names
     saved as companion files.
     '''
+    import pandas as pd
     df = pd.read_csv(csv, index_col=0, header=0)
     pd.Series(df.index).to_csv(sparse + ".rownames", index=False)
     pd.Series(df.columns.values).to_csv(sparse + ".colnames", index=False)

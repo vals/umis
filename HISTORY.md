@@ -1,5 +1,6 @@
 ## 0.8.0 (in progress)
 - Add `version` subcommand.
+- Fix missing pandas import in `sparse` subcommand.
 
 ## 0.7.0
 - Fix for kallisto output failing due to defaultdict not being imported. Thanks to @andreas-wilm for the fix.
