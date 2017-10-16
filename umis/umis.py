@@ -883,7 +883,7 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
                 for cell in cells:
                     umis = [1 for _, v in evidence[cell].items() if v >= minevidence]
                     earray.append(str(sum(umis)))
-                out_handle.write(",".join([target_name] + earray) + "\n")
+                out_handle.write(",".join([current_transcript] + earray) + "\n")
                 current_transcript = target_name
                 evidence = collections.defaultdict(lambda: collections.defaultdict(int))
                 if not transcripts_processed % 1000:
