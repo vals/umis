@@ -1,4 +1,7 @@
-## 0.8.0 (in progress)
+## 0.9.0 (in progress)
+
+## 0.8.0
+- Fix `fasttagcount` off-by-one issue.
 - Add `version` subcommand.
 - Fix missing pandas import in `sparse` subcommand.
 
