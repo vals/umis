@@ -792,16 +792,11 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
 
     sam_mode = 'r' if sam.endswith(".sam") else 'rb'
     sam_file = AlignmentFile(sam, mode=sam_mode)
-    targets = [x["SN"] for x in sam_file.header["SQ"]]
-    missing_transcripts = set()
     if gene_map:
-        genes = set()
-        for txid in targets:
-            if txid in gene_map:
-                genes.add(gene_map[txid])
-            else:
-                genes.add(txid)
-        targets = genes
+        targets = gene_map.values()
+    else:
+        targets = [x["SN"] for x in sam_file.header["SQ"]]
+    missing_transcripts = set()
     track = sam_file.fetch(until_eof=True)
     count = 0
     unmapped = 0
@@ -869,7 +864,7 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
                         target_name = gene_map[txid]
                     else:
                         missing_transcripts.add(txid)
-                        target_name = txid
+                        continue
                 else:
                     target_name = txid
             targets_seen.add(target_name)
@@ -904,17 +899,19 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
         out_handle.write(",".join([target_name] + earray) + "\n")
 
         # record zeros so we have a complete table
-        for target in set(targets).difference(targets_seen):
-            earray = []
-            for cell in cells:
-                earray.append("0")
-            out_handle.write(",".join([target] + earray) + "\n")
+#        for target in set(targets).difference(targets_seen):
+#            earray = []
+#            for cell in cells:
+#                earray.append("0")
+#           out_handle.write(",".join([target] + earray) + "\n")
 
-    # sort index
+    # fill dataframe with missing values, sort and output
     df = pd.read_csv(out, index_col=0, header=0)
+    targets = pd.Series(index=set(targets))
+    targets = targets.sort_index()
+    df = df.reindex(targets.index.values, fill_value=0)
     df = df.sort_index()
     df.to_csv(out)
-
 
 @click.command()
 @click.argument("csv")
