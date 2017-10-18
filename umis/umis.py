@@ -258,7 +258,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
                     read1_dict = _extract_readnum(read1_dict)
                     read2_dict = _extract_readnum(read2_dict)
 
-                    tooshort = (len(read1_dict['seq']) < min_length and
+                    tooshort = (len(read1_dict['seq']) < min_length or
                                 len(read2_dict['seq']) < min_length)
 
                     if not tooshort:
