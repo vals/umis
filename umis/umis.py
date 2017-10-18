@@ -24,7 +24,7 @@ import numpy as np
 import scipy.io, scipy.sparse
 import click
 
-VERSION = "0.8.0"
+VERSION = "0.9.0a"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

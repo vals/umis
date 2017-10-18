@@ -1,4 +1,5 @@
 ## 0.9.0 (in progress)
+- Fix for min-length filtering with paired samples. Previously required only one read to be longer, fix requires both.
 
 ## 0.8.0
 - Fix `fasttagcount` off-by-one issue.
