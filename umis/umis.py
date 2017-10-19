@@ -97,9 +97,12 @@ def write_fastq(filename):
         filename_fh = None
     return filename_fh
 
-def stream_bamfile(sam):
+def stream_bamfile(sam, transcript=None):
     sam_file = open_bamfile(sam)
-    track = sam_file.fetch(until_eof=True)
+    if transcript:
+        track = sam_file.fetch(transcript)
+    else:
+        track = sam_file.fetch(until_eof=True)
     return track
 
 def open_bamfile(sam):
@@ -792,13 +795,17 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
 
     sam_mode = 'r' if sam.endswith(".sam") else 'rb'
     sam_file = AlignmentFile(sam, mode=sam_mode)
+    transcript_map = collections.defaultdict(set)
+    sam_transcripts = [x["SN"] for x in sam_file.header["SQ"]]
     if gene_map:
-        targets = gene_map.values()
+        for transcript, gene in gene_map.items():
+            if transcript in sam_transcripts:
+                transcript_map[gene].add(transcript)
     else:
-        targets = [x["SN"] for x in sam_file.header["SQ"]]
+        for transcript in sam_transcripts:
+            transcript_map[transcript].add(transcript)
     missing_transcripts = set()
-    track = sam_file.fetch(until_eof=True)
-    count = 0
+    alignments_processed = 0
     unmapped = 0
     kept = 0
     nomatchcb = 0
@@ -806,108 +813,89 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
     current_transcript = None
     count_this_read = True
     transcripts_processed = 0
+    genes_processed = 0
     cells = list(cb_hist.index)
     targets_seen = set()
 
     with open(out, "w") as out_handle:
         out_handle.write(",".join(["gene"] + cells) + "\n")
-        for i, aln in enumerate(track):
-            if count and not count % 1000000:
-                logger.info("Processed %d alignments, kept %d." % (count, kept))
-                logger.info("%d were filtered for being unmapped." % unmapped)
-                if filter_cb:
-                    logger.info("%d were filtered for not matching known barcodes."
-                                % nomatchcb)
-            count += 1
+        for gene, transcripts in transcript_map.items():
+            for transcript in transcripts:
+                for aln in sam_file.fetch(transcript):
+                    alignments_processed += 1
 
-            if aln.is_unmapped:
-                unmapped += 1
-                continue
-
-            if gene_tags and not aln.has_tag('GX'):
-                unmapped += 1
-                continue
-
-            if aln.qname != current_read:
-                current_read = aln.qname
-                if subsample and i not in index_filter:
-                    count_this_read = False
-                    continue
-                else:
-                    count_this_read = True
-            else:
-                if not count_this_read:
-                    continue
-
-            if parse_tags:
-                CB = aln.get_tag('CR')
-            else:
-                match = parser_re.match(aln.qname)
-                CB = match.group('CB')
-
-            if filter_cb:
-                if CB not in cb_hist.index:
-                    nomatchcb += 1
-                    continue
-
-            if parse_tags:
-                MB = aln.get_tag('UM')
-            else:
-                MB = match.group('MB')
-
-            if gene_tags:
-                target_name = aln.get_tag('GX').split(',')[0]
-            else:
-                txid = sam_file.getrname(aln.reference_id)
-                if gene_map:
-                    if txid in gene_map:
-                        target_name = gene_map[txid]
-                    else:
-                        missing_transcripts.add(txid)
+                    if aln.is_unmapped:
+                        unmapped += 1
                         continue
-                else:
-                    target_name = txid
-            targets_seen.add(target_name)
 
-            if not current_transcript:
-                current_transcript = target_name
+                    if gene_tags and not aln.has_tag('GX'):
+                        unmapped += 1
+                        continue
 
-            if current_transcript != target_name:
+                    if aln.qname != current_read:
+                        current_read = aln.qname
+                        if subsample and i not in index_filter:
+                            count_this_read = False
+                            continue
+                        else:
+                            count_this_read = True
+                    else:
+                        if not count_this_read:
+                            continue
+
+                    if parse_tags:
+                        CB = aln.get_tag('CR')
+                    else:
+                        match = parser_re.match(aln.qname)
+                        CB = match.group('CB')
+
+                    if filter_cb:
+                        if CB not in cb_hist.index:
+                            nomatchcb += 1
+                            continue
+
+                    if parse_tags:
+                        MB = aln.get_tag('UM')
+                    else:
+                        MB = match.group('MB')
+
+                    if gene_tags:
+                        target_name = aln.get_tag('GX').split(',')[0]
+                    else:
+                        txid = sam_file.getrname(aln.reference_id)
+                        if gene_map:
+                            if txid in gene_map:
+                                target_name = gene_map[txid]
+                            else:
+                                missing_transcripts.add(txid)
+                                continue
+                        else:
+                            target_name = txid
+                    targets_seen.add(target_name)
+
+                    # Scale evidence by number of hits
+                    if no_scale_evidence:
+                        evidence[CB][MB] += 1.0
+                    else:
+                        evidence[CB][MB] += weigh_evidence(aln.tags)
+                    kept += 1
                 transcripts_processed += 1
-                earray = []
-                for cell in cells:
-                    umis = [1 for _, v in evidence[cell].items() if v >= minevidence]
-                    earray.append(str(sum(umis)))
-                out_handle.write(",".join([current_transcript] + earray) + "\n")
-                current_transcript = target_name
-                evidence = collections.defaultdict(lambda: collections.defaultdict(int))
                 if not transcripts_processed % 1000:
+                    logger.info("%d genes processed." % genes_processed)
                     logger.info("%d transcripts processed." % transcripts_processed)
+                    logger.info("%d alignments processed." % alignments_processed)
 
-            # Scale evidence by number of hits
-            if no_scale_evidence:
-                evidence[CB][MB] += 1.0
-            else:
-                evidence[CB][MB] += weigh_evidence(aln.tags)
-            kept += 1
-
-        # write out last seen transcript of evidence
-        earray = []
-        for cell in cells:
-            umis = [1 for _, v in evidence[cell].items() if v >= minevidence]
-            earray.append(str(sum(umis)))
-        out_handle.write(",".join([target_name] + earray) + "\n")
-
-        # record zeros so we have a complete table
-#        for target in set(targets).difference(targets_seen):
-#            earray = []
-#            for cell in cells:
-#                earray.append("0")
-#           out_handle.write(",".join([target] + earray) + "\n")
+            earray = []
+            for cell in cells:
+                umis = [1 for _, v in evidence[cell].items() if v >= minevidence]
+                earray.append(str(sum(umis)))
+            out_handle.write(",".join([gene] + earray) + "\n")
+            evidence = collections.defaultdict(lambda: collections.defaultdict(int))
+            genes_processed += 1
 
     # fill dataframe with missing values, sort and output
     df = pd.read_csv(out, index_col=0, header=0)
-    targets = pd.Series(index=set(targets))
+    targets = pd.Series(index=set(transcript_map.keys()))
     targets = targets.sort_index()
     df = df.reindex(targets.index.values, fill_value=0)
     df = df.sort_index()
