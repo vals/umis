@@ -8,7 +8,7 @@ def read(fname):
 
 setup(
         name='umis',
-        version='0.9.0a',
+        version='0.9.0b',
         description='Package for estimating UMI counts in Transcript Tag Counting data.',
         packages=find_packages(),
         install_requires=['click', 'pysam>=0.8.3', 'pandas', 'regex', 'scipy', 'toolz'],
