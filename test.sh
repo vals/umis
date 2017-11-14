@@ -95,6 +95,13 @@ umis demultiplex_samples --nedit 1 \
 --out_dir tests/results \
 examples/Klein-inDrop/test14.fq
 
+umis fastqtransform \
+examples/10XGenomics_v2/transform.json \
+examples/10XGenomics_v2/test_7_R1.fastq \
+examples/10XGenomics_v2/test_7_R2.fastq \
+examples/10XGenomics_v2/test_7_I1.fastq \
+> tests/results/test15.fq
+
 umis bamtag \
 examples/bamtag/bamtag.sam \
 > tests/results/test_bamtag.sam
