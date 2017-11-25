@@ -72,7 +72,9 @@ def read_fastq(filename):
     """
     if not filename:
         return itertools.cycle((None,))
-    if filename.endswith('gz'):
+    if filename == "-":
+        filename_fh = sys.stdin
+    elif filename.endswith('gz'):
         filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
     else:
         filename_fh = open(filename)
