@@ -34,6 +34,9 @@ BARCODEINFO = {"sample": BarcodeInfo(bamtag="XS", readprefix="SAMPLE"),
                "cellular": BarcodeInfo(bamtag="XC", readprefix="CELL"),
                "molecular": BarcodeInfo(bamtag="RX", readprefix="UMI")}
 
+def open_gzipsafe(f):
+    return gzip.open(f) if f.endswith(".gz") else open(f)
+
 def safe_makedir(dname):
     """Make a directory if it doesn't exist, handling concurrent race conditions.
     """
@@ -1009,9 +1012,9 @@ def guess_depth_cutoff(cb_histogram):
 
 @click.command()
 @click.argument('fastq', required=True)
-@click.option('--bc1', type=click.File('r'))
-@click.option('--bc2', type=click.File('r'), required=False)
-@click.option('--bc3', type=click.File('r'), required=False)
+@click.option('--bc1', default=None)
+@click.option('--bc2', default=None)
+@click.option('--bc3', default=None)
 @click.option('--cores', default=1)
 @click.option('--nedit', default=0)
 def cb_filter(fastq, bc1, bc2, bc3, cores, nedit):
@@ -1019,11 +1022,14 @@ def cb_filter(fastq, bc1, bc2, bc3, cores, nedit):
     Expects formatted fastq files.
     '''
 
-    bc1 = set(cb.strip() for cb in bc1)
+    with open_gzipsafe(bc1) as bc1_fh:
+        bc1 = set(cb.strip() for cb in bc1_fh)
     if bc2:
-        bc2 = set(cb.strip() for cb in bc2)
+        with open_gzipsafe(bc2) as bc2_fh:
+            bc2 = set(cb.strip() for cb in bc2_fh)
     if bc3:
-        bc3 = set(cb.strip() for cb in bc3)
+        with open_gzipsafe(bc3) as bc3_fh:
+            bc3 = set(cb.strip() for cb in bc3_fh)
 
     if nedit == 0:
         filter_cb = partial(exact_barcode_filter, bc1=bc1, bc2=bc2, bc3=bc3)
