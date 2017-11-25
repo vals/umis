@@ -18,8 +18,8 @@ from functools import partial
 import toolz as tz
 
 from .barcodes import (exact_barcode_filter, correcting_barcode_filter,
-                      exact_sample_filter, correcting_sample_filter, exact_sample_filter2
-                      , correcting_sample_filter2, umi_filter, append_uids, MutationHash)
+                       exact_sample_filter, correcting_sample_filter, exact_sample_filter2,
+                       correcting_sample_filter2, umi_filter, append_uids, MutationHash)
 import numpy as np
 import scipy.io, scipy.sparse
 import click
