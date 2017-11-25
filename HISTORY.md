@@ -1,5 +1,9 @@
 ## 0.9.0 (in progress)
 - Fix for min-length filtering with paired samples. Previously required only one read to be longer, fix requires both.
+- Fix tests for fastqtagcount to use indexed BAM files.
+- Support gzipped cellular barcode files.
+- Support 10x V2 barcoding scheme. Thanks to @tomasgomes for the fix.
+- Re-enable streaming for cellular barcode filtering.
 
 ## 0.8.0
 - Fix `fasttagcount` off-by-one issue.
