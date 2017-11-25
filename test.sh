@@ -167,7 +167,7 @@ umis cb_filter \
 umis fasttagcount \
      --cb_cutoff 1 \
      --cb_histogram examples/tagcount/cb-histogram.txt.gz \
-     examples/tagcount/tagcount.sam \
+     examples/tagcount/tagcount.bam \
     tests/results/test22-fasttagcount-cbhistogram.txt
 
 umis tagcount \
@@ -181,7 +181,7 @@ umis fasttagcount \
      --genemap examples/tagcount/gene-map.tsv \
      --cb_cutoff 1 \
      --cb_histogram examples/tagcount/cb-histogram.txt.gz \
-     examples/tagcount/tagcount.sam \
+     examples/tagcount/tagcount.bam \
     tests/results/test24-fasttagcount-cbhistogram-genemap.txt
 
 # only display diff output if there are differences

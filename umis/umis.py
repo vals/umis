@@ -718,6 +718,11 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
 
     from utils import weigh_evidence
 
+    if sam.endswith(".sam"):
+        logger.error("To use the fasttagcount subcommand, the alignment file must be a "
+                     "coordinate sorted, indexed BAM file.")
+        sys.exit(1)
+
     logger.info('Reading optional files')
 
     gene_map = None
