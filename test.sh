@@ -167,6 +167,7 @@ umis cb_filter \
 umis fasttagcount \
      --cb_cutoff 1 \
      --cb_histogram examples/tagcount/cb-histogram.txt.gz \
+     --umi_matrix tests/results/test22-fasttagcount-umi-matrix.txt \
      examples/tagcount/tagcount.bam \
     tests/results/test22-fasttagcount-cbhistogram.txt
 

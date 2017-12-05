@@ -697,7 +697,6 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
 @click.option('--cb_cutoff', default=None,
                 help=("Number of counts to filter cellular barcodes. Set to "
                       "'auto' to calculate a cutoff automatically."))
-@click.option('--no_scale_evidence', default=False, is_flag=True)
 @click.option('--subsample', required=False, default=None, type=int)
 @click.option('--parse_tags', required=False, is_flag=True,
                 help=('Parse BAM tags in stead of read name. In this mode '
@@ -708,8 +707,10 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
                       'read gene mapping information in stead of the mapping '
                       'target nane. Useful if e.g. reads have been mapped to '
                       'genome in stead of transcriptome.'))
+@click.option('--umi_matrix', required=False, 
+              help=('Save a sparse matrix of counts without UMI deduping to this file.'))
 def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram, 
-                 cb_cutoff, no_scale_evidence, subsample, parse_tags, gene_tags):
+                 cb_cutoff, subsample, parse_tags, gene_tags, umi_matrix):
     ''' Count up evidence for tagged molecules, this implementation assumes the
     alignment file is coordinate sorted
     '''
@@ -799,7 +800,8 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
         sampling_time = time.time() - start_sampling
         logger.info('Sampling done - {:.3}s'.format(sampling_time))
 
-    evidence = collections.defaultdict(lambda: collections.defaultdict(int))
+    evidence = collections.defaultdict(lambda: collections.defaultdict(float))
+    bare_evidence = collections.defaultdict(float)
     logger.info('Tallying evidence')
     start_tally = time.time()
 
@@ -826,6 +828,10 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
     genes_processed = 0
     cells = list(cb_hist.index)
     targets_seen = set()
+
+    if umi_matrix:
+        bare_evidence_handle = open(umi_matrix, "w")
+        bare_evidence_handle.write(",".join(["gene"] + cells) + "\n")
 
     with open(out, "w") as out_handle:
         out_handle.write(",".join(["gene"] + cells) + "\n")
@@ -884,10 +890,8 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
                     targets_seen.add(target_name)
 
                     # Scale evidence by number of hits
-                    if no_scale_evidence:
-                        evidence[CB][MB] += 1.0
-                    else:
-                        evidence[CB][MB] += weigh_evidence(aln.tags)
+                    evidence[CB][MB] += weigh_evidence(aln.tags)
+                    bare_evidence[CB] += weigh_evidence(aln.tags)
                     kept += 1
                 transcripts_processed += 1
                 if not transcripts_processed % 1000:
@@ -900,8 +904,18 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
                 umis = [1 for _, v in evidence[cell].items() if v >= minevidence]
                 earray.append(str(sum(umis)))
             out_handle.write(",".join([gene] + earray) + "\n")
+            earray = []
+            if umi_matrix:
+                for cell in cells:
+                    earray.append(str(int(bare_evidence[cell])))
+                bare_evidence_handle.write(",".join([gene] + earray) + "\n")
+
             evidence = collections.defaultdict(lambda: collections.defaultdict(int))
+            bare_evidence = collections.defaultdict(int)
             genes_processed += 1
+
+    if umi_matrix:
+        bare_evidence_handle.close()
 
     # fill dataframe with missing values, sort and output
     df = pd.read_csv(out, index_col=0, header=0)
@@ -910,6 +924,13 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
     df = df.reindex(targets.index.values, fill_value=0)
     df = df.sort_index()
     df.to_csv(out)
+
+    if umi_matrix:
+        df = pd.read_csv(umi_matrix, index_col=0, header=0)
+        df = df.reindex(targets.index.values, fill_value=0)
+        df = df.sort_index()
+        df.to_csv(umi_matrix)
+
 
 @click.command()
 @click.argument("csv")
