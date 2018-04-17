@@ -1040,7 +1040,7 @@ def guess_depth_cutoff(cb_histogram):
 
 @click.command()
 @click.argument('fastq', required=True)
-@click.option('--bc1', default=None)
+@click.option('--bc1', default=None, required=True)
 @click.option('--bc2', default=None)
 @click.option('--bc3', default=None)
 @click.option('--cores', default=1)
