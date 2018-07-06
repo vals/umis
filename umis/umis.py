@@ -1081,7 +1081,7 @@ def cb_filter(fastq, bc1, bc2, bc3, cores, nedit):
                 sys.stdout.write(read)
 
 @click.command()
-@click.argument('fastq', type=click.File('r'))
+@click.argument('fastq', required=True)
 @click.option('--bc', type=click.File('r'))
 @click.option('--cores', default=1)
 @click.option('--nedit', default=0)
@@ -1097,7 +1097,7 @@ def sb_filter(fastq, bc, cores, nedit):
         filter_sb = partial(correcting_sample_filter2, barcodehash=barcodehash)
     p = multiprocessing.Pool(cores)
 
-    chunks = tz.partition_all(10000, stream_fastq(fastq))
+    chunks = tz.partition_all(10000, read_fastq(fastq))
     bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(filter_sb, list(bigchunk)):
@@ -1105,7 +1105,7 @@ def sb_filter(fastq, bc, cores, nedit):
                 sys.stdout.write(read)
 
 @click.command()
-@click.argument('fastq', type=click.File('r'))
+@click.argument('fastq', required=True)
 @click.option('--cores', default=1)
 def mb_filter(fastq, cores):
     ''' Filters umis with non-ACGT bases
@@ -1114,7 +1114,7 @@ def mb_filter(fastq, cores):
     filter_mb = partial(umi_filter)
     p = multiprocessing.Pool(cores)
 
-    chunks = tz.partition_all(10000, stream_fastq(fastq))
+    chunks = tz.partition_all(10000, read_fastq(fastq))
     bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(filter_mb, list(bigchunk)):
@@ -1122,7 +1122,7 @@ def mb_filter(fastq, cores):
                 sys.stdout.write(read)
 
 @click.command()
-@click.argument('fastq', type=click.File('r'))
+@click.argument('fastq', required=True)
 @click.option('--cores', default=1)
 def add_uid(fastq, cores):
     ''' Adds UID:[samplebc cellbc umi] to readname for umi-tools deduplication
@@ -1132,7 +1132,7 @@ def add_uid(fastq, cores):
     uids = partial(append_uids)
     p = multiprocessing.Pool(cores)
 
-    chunks = tz.partition_all(10000, stream_fastq(fastq))
+    chunks = tz.partition_all(10000, read_fastq(fastq))
     bigchunks = tz.partition_all(cores, chunks)
     for bigchunk in bigchunks:
         for chunk in p.map(uids, list(bigchunk)):
