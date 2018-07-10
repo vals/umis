@@ -1,10 +1,13 @@
-## 0.9.0 (in progress)
+## 1.1.0 (in progress)
+
+## 1.0.0
 - Fix for min-length filtering with paired samples. Previously required only one read to be longer, fix requires both.
 - Fix tests for fastqtagcount to use indexed BAM files.
 - Support gzipped cellular barcode files.
 - Support 10x V2 barcoding scheme. Thanks to @tomasgomes for the fix.
 - Re-enable streaming for cellular barcode filtering.
-- Add umi_matrix option to fasttagcount. This outputs a non-umi-deduped matrix of counts, useful for QC.
+- Add `--umi_matrix` option to fasttagcount. This outputs a non-umi-deduped matrix of counts, useful for QC.
+- Support gzipped files for `sb_filter`, `mb_filter` and `add_uid`.
 
 ## 0.8.0
 - Fix `fasttagcount` off-by-one issue.
