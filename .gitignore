@@ -1,3 +1,6 @@
 tests/results
 build/
 .eggs/
+dist/
+umis.egg-info/
+umis/utils.c
