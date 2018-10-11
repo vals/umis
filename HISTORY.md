@@ -1,4 +1,5 @@
-## 1.1.0 (in progress)
+## 1.0.1 
+- Add support for click 7.0.
 
 ## 1.0.0
 - Fix for min-length filtering with paired samples. Previously required only one read to be longer, fix requires both.

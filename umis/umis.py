@@ -24,7 +24,7 @@ import numpy as np
 import scipy.io, scipy.sparse
 import click
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1342,13 +1342,13 @@ umis.add_command(sparse)
 umis.add_command(fastqtransform)
 umis.add_command(tagcount)
 umis.add_command(fasttagcount)
-umis.add_command(cb_histogram)
-umis.add_command(umi_histogram)
-umis.add_command(cb_filter)
-umis.add_command(sb_filter)
-umis.add_command(mb_filter)
-umis.add_command(add_uid)
+umis.add_command(cb_histogram, name="cb_histogram")
+umis.add_command(umi_histogram, name="umi_histogram")
+umis.add_command(cb_filter, name="cb_filter")
+umis.add_command(sb_filter, name="sb_filter")
+umis.add_command(mb_filter, name="mb_filter")
+umis.add_command(add_uid, name="add_uid")
 umis.add_command(kallisto)
 umis.add_command(bamtag)
-umis.add_command(demultiplex_samples)
-umis.add_command(subset_bamfile)
+umis.add_command(demultiplex_samples, name="demultiplex_samples")
+umis.add_command(subset_bamfile, name="subset_bamfile")
