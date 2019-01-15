@@ -185,6 +185,11 @@ umis fasttagcount \
      examples/tagcount/tagcount.bam \
     tests/results/test24-fasttagcount-cbhistogram-genemap.txt
 
+umis demultiplex_cells \
+--out_dir tests/results \
+examples/Klein-inDrop/test_cell_demultiplex.fq
+
+
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
   diff -rq tests/results tests/correct
