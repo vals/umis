@@ -1293,6 +1293,42 @@ def demultiplex_samples(fastq, out_dir, nedit, barcodes):
                     out_handle.write(read)
 
 @click.command()
+@click.argument('fastq', required=True)
+@click.option('--out_dir', default=".")
+def demultiplex_cells(fastq, out_dir):
+    ''' Demultiplex a fastqtransformed FASTQ file into a FASTQ file for
+    each cell.
+    '''
+    annotations = detect_fastq_annotations(fastq)
+    re_string = construct_transformed_regex(annotations)
+    parser_re = re.compile(re_string)
+
+    sample_set = set()
+    batch = collections.defaultdict(list)
+    parsed = 0
+    safe_makedir(out_dir)
+    for read in read_fastq(fastq):
+        parsed += 1
+        match = parser_re.search(read).groupdict()
+        sample = match['CB']
+        sample_set.add(sample)
+        batch[sample].append(read)
+        # write in batches to avoid opening up file handles repeatedly
+        if not parsed % 10000000:
+            for sample, reads in batch.items():
+                out_file = os.path.join(out_dir, sample + ".fq")
+                with open(out_file, "a") as out_handle:
+                    for read in reads:
+                        out_handle.write(read)
+            batch = collections.defaultdict(list)
+
+    for sample, reads in batch.items():
+        out_file = os.path.join(out_dir, sample + ".fq")
+        with open(out_file, "a") as out_handle:
+            for read in reads:
+                out_handle.write(read)
+
+@click.command()
 @click.argument('SAM', required=True)
 @click.argument('barcodes', type=click.File('r'), required=True)
 def subset_bamfile(sam, barcodes):
@@ -1351,4 +1387,5 @@ umis.add_command(add_uid, name="add_uid")
 umis.add_command(kallisto)
 umis.add_command(bamtag)
 umis.add_command(demultiplex_samples, name="demultiplex_samples")
+umis.add_command(demultiplex_cells, name="demultiplex_cells")
 umis.add_command(subset_bamfile, name="subset_bamfile")
