@@ -1299,13 +1299,17 @@ def demultiplex_samples(fastq, out_dir, nedit, barcodes):
 @click.command()
 @click.argument('fastq', required=True)
 @click.option('--out_dir', default=".")
-def demultiplex_cells(fastq, out_dir):
+@click.option('--readnumber', default="")
+@click.option('--prefix', default="")
+def demultiplex_cells(fastq, out_dir, readnumber, prefix=""):
     ''' Demultiplex a fastqtransformed FASTQ file into a FASTQ file for
     each cell.
     '''
     annotations = detect_fastq_annotations(fastq)
     re_string = construct_transformed_regex(annotations)
     parser_re = re.compile(re_string)
+    readstring = "" if not readnumber else "_R{}".format(readnumber)
+    filestring = "{prefix}{sample}{readstring}.fq"
 
     sample_set = set()
     batch = collections.defaultdict(list)
@@ -1320,14 +1324,14 @@ def demultiplex_cells(fastq, out_dir):
         # write in batches to avoid opening up file handles repeatedly
         if not parsed % 10000000:
             for sample, reads in batch.items():
-                out_file = os.path.join(out_dir, sample + ".fq")
+                out_file = os.path.join(out_dir, filestring.format(**locals()))
                 with open(out_file, "a") as out_handle:
                     for read in reads:
                         out_handle.write(read)
             batch = collections.defaultdict(list)
 
     for sample, reads in batch.items():
-        out_file = os.path.join(out_dir, sample + ".fq")
+        out_file = os.path.join(out_dir, filestring.format(**locals()))
         with open(out_file, "a") as out_handle:
             for read in reads:
                 out_handle.write(read)
