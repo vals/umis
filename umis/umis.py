@@ -480,7 +480,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     cb_hist = None
     filter_cb = False
     if cb_histogram:
-        cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, squeeze=True)
+        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=-1, squeeze=True, sep="\t")
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
         logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
@@ -674,8 +674,8 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
             shutil.copyfileobj(buf, etab_fh)
 
     if sparse:
-        pd.Series(genes.index).to_csv(out + ".rownames", index=False)
-        pd.Series(genes.columns.values).to_csv(out + ".colnames", index=False)
+        pd.Series(genes.index).to_csv(out + ".rownames", index=False, header=False)
+        pd.Series(genes.columns.values).to_csv(out + ".colnames", index=False, header=False)
         with open(out, "w+b") as out_handle:
             scipy.io.mmwrite(out_handle, scipy.sparse.csr_matrix(genes))
     else:
@@ -753,7 +753,7 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
     cb_hist = None
     filter_cb = False
     if cb_histogram:
-        cb_hist = pd.read_table(cb_histogram, index_col=0, header=-1, squeeze=True)
+        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=-1, squeeze=True, sep="\t")
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
         logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
