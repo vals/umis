@@ -2,8 +2,10 @@ import regex as re
 import itertools
 from collections import defaultdict
 
-def exact_barcode_filter(chunk, bc1, bc2, bc3):
-    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
+def exact_barcode_filter(chunk, bc1, bc2, bc3, re_string=None):
+    if not re_string:
+        re_string = '(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n'
+    parser_re = re.compile(re_string)
     kept = []
     for read in chunk:
         match = parser_re.search(read).groupdict()
@@ -21,8 +23,10 @@ def exact_barcode_filter(chunk, bc1, bc2, bc3):
         kept.append(read)
     return kept
 
-def correcting_barcode_filter(chunk, bc1hash, bc2hash, bc3hash):
-    parser_re = re.compile('(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n')
+def correcting_barcode_filter(chunk, bc1hash, bc2hash, bc3hash, re_string=None):
+    if not re_string:
+        re_string = '(.*):CELL_(?P<CB>.*):UMI_(.*)\\n(.*)\\n\\+\\n(.*)\\n'
+    parser_re = re.compile(re_string)
     kept = []
     for read in chunk:
         match = parser_re.search(read).groupdict()

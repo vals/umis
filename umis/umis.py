@@ -1059,8 +1059,12 @@ def cb_filter(fastq, bc1, bc2, bc3, cores, nedit):
         with open_gzipsafe(bc3) as bc3_fh:
             bc3 = set(cb.strip() for cb in bc3_fh)
 
+    annotations = detect_fastq_annotations(fastq)
+    re_string = construct_transformed_regex(annotations)
+
     if nedit == 0:
-        filter_cb = partial(exact_barcode_filter, bc1=bc1, bc2=bc2, bc3=bc3)
+        filter_cb = partial(exact_barcode_filter, bc1=bc1, bc2=bc2, bc3=bc3,
+                            re_string=re_string)
     else:
         bc1hash = MutationHash(bc1, nedit)
         bc2hash = None
@@ -1070,7 +1074,7 @@ def cb_filter(fastq, bc1, bc2, bc3, cores, nedit):
         if bc3:
             bc3hash = MutationHash(bc3, nedit)
         filter_cb = partial(correcting_barcode_filter, bc1hash=bc1hash,
-                            bc2hash=bc2hash, bc3hash=bc3hash)
+                            bc2hash=bc2hash, bc3hash=bc3hash, re_string=re_string)
     p = multiprocessing.Pool(cores)
 
     chunks = tz.partition_all(10000, read_fastq(fastq))
