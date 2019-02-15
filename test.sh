@@ -116,16 +116,17 @@ umis bamtag - < examples/bamtag/bamtag-xstag.bam > tests/results/test-bamtag-xst
 
 umis cb_histogram \
 examples/Klein-inDrop/test14.fq \
-> tests/results/test15-cb-histogram.txt
+| sort -k2,2rn >  tests/results/test15-cb-histogram.txt
 
 umis cb_histogram \
 --umi_histogram tests/results/test15-mb-histogram.txt \
 examples/Klein-inDrop/test14.fq \
-> tests/results/test15-cb-histogram.txt
+| sort -k2,2rn > tests/results/test15-cb-histogram.txt
+sort -k3,3rn -o tests/results/test15-mb-histogram.txt tests/results/test15-mb-histogram.txt
 
 umis umi_histogram \
 examples/Klein-inDrop/test14.fq \
-     > tests/results/test16-umi-histogram.txt
+| sort -k2,2rn > tests/results/test16-umi-histogram.txt
 
 umis tagcount \
      examples/tagcount/tagcount.sam \

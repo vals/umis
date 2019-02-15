@@ -13,7 +13,7 @@ import logging
 import time
 import multiprocessing
 import tempfile
-from io import BufferedReader
+from io import BufferedReader, TextIOWrapper
 from functools import partial
 import toolz as tz
 
@@ -24,7 +24,7 @@ import numpy as np
 import scipy.io, scipy.sparse
 import click
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -75,7 +75,10 @@ def read_fastq(filename):
     if filename == "-":
         filename_fh = sys.stdin
     elif filename.endswith('gz'):
-        filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
+        if is_python3:
+            filename_fh = gzip.open(filename, mode='rt')
+        else:
+            filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
     else:
         filename_fh = open(filename)
     return stream_fastq(filename_fh)
@@ -84,7 +87,8 @@ def read_cbhistogram(filename):
     if not filename:
         return None
     if filename.endswith('gz'):
-        filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
+#        filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
+        filename_fh = gzip.open(filename, mode='rt')
     else:
         filename_fh = open(filename)
     return filename_fh
@@ -182,6 +186,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
     transform = json.load(open(transform))
     options = _infer_transform_options(transform)
     read_template = '{name}'
+    logger.info("Transforming %s." % fastq1)
     if options.dual_index:
         logger.info("Detected dual cellular indexes.")
         if separate_cb:
@@ -1213,7 +1218,10 @@ def bamtag(sam):
     track = sam_file.fetch(until_eof=True)
 
     # peek at first alignment to determine the annotations
-    queryalignment = track.next()
+    if is_python3():
+        queryalignment = next(track)
+    else:
+        queryalignment = track.next()
     annotations = detect_alignment_annotations(queryalignment)
     track = itertools.chain([queryalignment], track)
 
@@ -1295,6 +1303,9 @@ def demultiplex_samples(fastq, out_dir, nedit, barcodes):
                 fixed = filter_bc(read)
                 if fixed:
                     out_handle.write(read)
+
+def is_python3():
+    return sys.version_info >= (3, 0)
 
 @click.command()
 @click.argument('fastq', required=True)
