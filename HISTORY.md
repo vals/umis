@@ -1,6 +1,9 @@
-## 1.0.3 (in progress)
+## 1.0.4 (in progress)
 
-## 1.0.2 (in progress)
+## 1.0.3 
+- Python 3 support
+
+## 1.0.2 
 - Add `demultiplex_cells` subcommand to break a transformed FASTQ file into separate FASTQ files by cell.
 - Future proofing for changes to panda's `to_csv` function.
 
