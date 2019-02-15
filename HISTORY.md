@@ -1,5 +1,8 @@
+## 1.0.3 (in progress)
+
 ## 1.0.2 (in progress)
 - Add `demultiplex_cells` subcommand to break a transformed FASTQ file into separate FASTQ files by cell.
+- Future proofing for changes to panda's `to_csv` function.
 
 ## 1.0.1 
 - Add support for click 7.0.
