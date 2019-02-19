@@ -971,9 +971,9 @@ def cb_histogram(fastq, umi_histogram):
     for read in read_fastq(fastq):
         match = parser_re.search(read).groupdict()
         cb = match['CB']
-        umi = match['MB']
         cb_counter[cb] += 1
         if umi_histogram:
+            umi = match['MB']
             umi_counter[(cb, umi)] += 1
 
     for bc, count in cb_counter.most_common():
