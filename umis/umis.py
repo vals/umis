@@ -1312,7 +1312,10 @@ def is_python3():
 @click.option('--out_dir', default=".")
 @click.option('--readnumber', default="")
 @click.option('--prefix', default="")
-def demultiplex_cells(fastq, out_dir, readnumber, prefix=""):
+@click.option('--cb_histogram', default=None)
+@click.option('--cb_cutoff', default=0)
+def demultiplex_cells(fastq, out_dir, readnumber, prefix, cb_histogram, 
+                      cb_cutoff):
     ''' Demultiplex a fastqtransformed FASTQ file into a FASTQ file for
     each cell.
     '''
@@ -1321,7 +1324,9 @@ def demultiplex_cells(fastq, out_dir, readnumber, prefix=""):
     parser_re = re.compile(re_string)
     readstring = "" if not readnumber else "_R{}".format(readnumber)
     filestring = "{prefix}{sample}{readstring}.fq"
-
+    cb_set = set()
+    if cb_histogram:
+        cb_set = get_cb_depth_set(cb_histogram, cb_cutoff)
     sample_set = set()
     batch = collections.defaultdict(list)
     parsed = 0
@@ -1330,6 +1335,8 @@ def demultiplex_cells(fastq, out_dir, readnumber, prefix=""):
         parsed += 1
         match = parser_re.search(read).groupdict()
         sample = match['CB']
+        if cb_set and sample not in cb_set:
+            continue
         sample_set.add(sample)
         batch[sample].append(read)
         # write in batches to avoid opening up file handles repeatedly

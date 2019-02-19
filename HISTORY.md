@@ -1,5 +1,6 @@
 ## 1.0.4 (in progress)
 - Enable cb_histogram to be used on samples without UMIs.
+- Enable filtering of cells during `demultiplex_cells`.
 
 ## 1.0.3 
 - Python 3 support
