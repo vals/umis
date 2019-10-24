@@ -485,7 +485,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     cb_hist = None
     filter_cb = False
     if cb_histogram:
-        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=-1, squeeze=True, sep="\t")
+        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=None, squeeze=True, sep="\t")
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
         logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
@@ -712,9 +712,9 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
                       'read gene mapping information in stead of the mapping '
                       'target nane. Useful if e.g. reads have been mapped to '
                       'genome in stead of transcriptome.'))
-@click.option('--umi_matrix', required=False, 
+@click.option('--umi_matrix', required=False,
               help=('Save a sparse matrix of counts without UMI deduping to this file.'))
-def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram, 
+def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
                  cb_cutoff, subsample, parse_tags, gene_tags, umi_matrix):
     ''' Count up evidence for tagged molecules, this implementation assumes the
     alignment file is coordinate sorted
@@ -758,7 +758,7 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
     cb_hist = None
     filter_cb = False
     if cb_histogram:
-        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=-1, squeeze=True, sep="\t")
+        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=None, squeeze=True, sep="\t")
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
         logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
@@ -1314,7 +1314,7 @@ def is_python3():
 @click.option('--prefix', default="")
 @click.option('--cb_histogram', default=None)
 @click.option('--cb_cutoff', default=0)
-def demultiplex_cells(fastq, out_dir, readnumber, prefix, cb_histogram, 
+def demultiplex_cells(fastq, out_dir, readnumber, prefix, cb_histogram,
                       cb_cutoff):
     ''' Demultiplex a fastqtransformed FASTQ file into a FASTQ file for
     each cell.
