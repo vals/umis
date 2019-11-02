@@ -35,7 +35,10 @@ BARCODEINFO = {"sample": BarcodeInfo(bamtag="XS", readprefix="SAMPLE"),
                "molecular": BarcodeInfo(bamtag="RX", readprefix="UMI")}
 
 def open_gzipsafe(f):
-    return gzip.open(f) if f.endswith(".gz") else open(f)
+    if is_python3():
+        return gzip.open(f, mode="rt", encoding="utf-8") if f.endswith(".gz") else open(f)
+    else:
+        return gzip.open(f) if f.endswith(".gz") else open(f)
 
 def safe_makedir(dname):
     """Make a directory if it doesn't exist, handling concurrent race conditions.
@@ -75,7 +78,7 @@ def read_fastq(filename):
     if filename == "-":
         filename_fh = sys.stdin
     elif filename.endswith('gz'):
-        if is_python3:
+        if is_python3():
             filename_fh = gzip.open(filename, mode='rt')
         else:
             filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
@@ -88,7 +91,7 @@ def read_cbhistogram(filename):
         return None
     if filename.endswith('gz'):
 #        filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
-        filename_fh = gzip.open(filename, mode='rt')
+        filename_fh = gzip.open(filename, mode='rt', encoding = "utf-8")
     else:
         filename_fh = open(filename)
     return filename_fh
@@ -1054,9 +1057,9 @@ def cb_filter(fastq, bc1, bc2, bc3, cores, nedit):
     ''' Filters reads with non-matching barcodes
     Expects formatted fastq files.
     '''
-
     with open_gzipsafe(bc1) as bc1_fh:
         bc1 = set(cb.strip() for cb in bc1_fh)
+
     if bc2:
         with open_gzipsafe(bc2) as bc2_fh:
             bc2 = set(cb.strip() for cb in bc2_fh)
