@@ -1,4 +1,7 @@
-## 1.0.4 (in progress)
+## 1.0.5
+- Fix for cb_filter with python3.
+
+## 1.0.4
 - Enable cb_histogram to be used on samples without UMIs.
 - Enable filtering of cells during `demultiplex_cells`.
 - Fix incorrect pandas.read_csv call with header=-1.
