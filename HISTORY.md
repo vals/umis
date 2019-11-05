@@ -1,3 +1,6 @@
+## 1.0.6
+- Fix for the python3 fix.
+
 ## 1.0.5
 - Fix for cb_filter with python3.
 
