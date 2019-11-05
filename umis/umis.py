@@ -24,7 +24,7 @@ import numpy as np
 import scipy.io, scipy.sparse
 import click
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ BARCODEINFO = {"sample": BarcodeInfo(bamtag="XS", readprefix="SAMPLE"),
 
 def open_gzipsafe(f):
     if is_python3():
-        return gzip.open(f, mode="rt", encoding="utf-8") if f.endswith(".gz") else open(f)
+        return gzip.open(f, mode="rt") if f.endswith(".gz") else open(f)
     else:
         return gzip.open(f) if f.endswith(".gz") else open(f)
 
@@ -91,7 +91,7 @@ def read_cbhistogram(filename):
         return None
     if filename.endswith('gz'):
 #        filename_fh = BufferedReader(gzip.open(filename, mode='rt'))
-        filename_fh = gzip.open(filename, mode='rt', encoding = "utf-8")
+        filename_fh = gzip.open(filename, mode='rt')
     else:
         filename_fh = open(filename)
     return filename_fh
