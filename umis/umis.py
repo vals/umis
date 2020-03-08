@@ -653,7 +653,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
         genes = pd.Series(index=set(gene_map.values()))
         genes = genes.sort_index()
         # Now genes is assigned to a DataFrame
-        genes = expanded.ix[genes.index]
+        genes = expanded.loc[genes.index]
 
     elif gene_tags:
         expanded.sort_index()
