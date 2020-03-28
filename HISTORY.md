@@ -1,3 +1,7 @@
+## 1.0.7
+- Ensure headers are not written when writing out a Series, to make us compatible with pandas > 0.24.
+- Fix for deprecated .ix call, .loc is the new replacement. Thanks to @naumenko-sa.
+
 ## 1.0.6
 - Fix for the python3 fix.
 
