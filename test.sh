@@ -190,6 +190,7 @@ umis demultiplex_cells \
 --out_dir tests/results \
 examples/Klein-inDrop/test_cell_demultiplex.fq
 
+umis sparse examples/tagcount/tagcount-example.csv tests/results/test25.mtx
 
 # only display diff output if there are differences
 if [[ $(diff -rq tests/results tests/correct) ]]; then
