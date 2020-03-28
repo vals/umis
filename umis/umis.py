@@ -949,8 +949,8 @@ def sparse(csv, sparse):
     '''
     import pandas as pd
     df = pd.read_csv(csv, index_col=0, header=0)
-    pd.Series(df.index).to_csv(sparse + ".rownames", index=False)
-    pd.Series(df.columns.values).to_csv(sparse + ".colnames", index=False)
+    pd.Series(df.index).to_csv(sparse + ".rownames", index=False, header=False)
+    pd.Series(df.columns.values).to_csv(sparse + ".colnames", index=False, header=False)
     with open(sparse, "w+b") as out_handle:
         scipy.io.mmwrite(out_handle, scipy.sparse.csr_matrix(df))
 
