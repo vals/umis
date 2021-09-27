@@ -190,7 +190,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
     options = _infer_transform_options(transform)
     read_template = '{name}'
     logger.info("Transforming %s." % fastq1)
-    if options.dual_index:
+    if options.dual_index and options.CB:
         logger.info("Detected dual cellular indexes.")
         if separate_cb:
             read_template += ':CELL_{CB1}-{CB2}'
@@ -205,9 +205,12 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
     elif options.CB or demuxed_cb:
         logger.info("Detected cellular barcodes.")
         read_template += ':CELL_{CB}'
-    if options.MB:
+    if options.MB and options.dual_index:
+        logger.info("Detected dual UMI.")
+        read_template += ':UMI_{MB1}-{MB2}'
+    elif options.MB:
         logger.info("Detected UMI.")
-        read_template += ':UMI_{MB}'
+        read_template += ":UMI_{MB}"
     if options.SB:
         logger.info("Detected sample.")
         read_template += ':SAMPLE_{SB}'
@@ -251,7 +254,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
         for chunk in p.map(transform, list(bigchunk)):
             if paired:
                 for read1_dict, read2_dict in tz.partition(2, chunk):
-                    if options.dual_index:
+                    if options.dual_index and options.CB:
                         if not separate_cb:
                             read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
                             read2_dict['CB'] = read2_dict['CB1'] + read2_dict['CB2']
@@ -259,6 +262,8 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
                     if demuxed_cb:
                         read1_dict['CB'] = demuxed_cb
                         read2_dict['CB'] = demuxed_cb
+                    if options.dual_index and options.MB:
+                        read1_dict['MB'] = read1_dict['MB1'] + read2_dict['MB2']
 
                     # Deal with spaces in read names
                     if keep_fastq_tags:
@@ -282,12 +287,15 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
                         fastq2out_fh.write(read_template.format(**read2_dict))
             else:
                 for read1_dict in chunk:
-                    if options.dual_index:
+                    if options.dual_index and options.CB:
                         if not separate_cb:
                             read1_dict['CB'] = read1_dict['CB1'] + read1_dict['CB2']
 
                     if demuxed_cb:
                         read1_dict['CB'] = demuxed_cb
+
+                    if options.dual_index and options.MB:
+                        read1_dict['MB'] = read1_dict['MB1'] + read1_dict['MB2']
 
                     # Deal with spaces in read names
                     if keep_fastq_tags:
@@ -326,6 +334,8 @@ def _infer_transform_options(transform):
                 triple_index = True
             else:
                 dual_index = True
+        if "MB1" in rx:
+            dual_index = True
         if "SB" in rx:
             SB = True
         if "CB" in rx:
@@ -353,7 +363,7 @@ def _extract_readnum(read_dict):
 def transformer(chunk, read1_regex, read2_regex, read3_regex, read4_regex,
                 paired=False):
     # Parse the reads with the regexes
-    update_keys = ("MB", "CB", "CB1", "CB2", "SP")
+    update_keys = ("MB", "CB", "CB1", "CB2", "SP", "MB1", "MB2")
     reads = []
     for read1, read2, read3, read4 in chunk:
         read1_match = read1_regex.search(read1)
