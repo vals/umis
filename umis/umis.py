@@ -283,8 +283,12 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
                                 len(read2_dict['seq']) < min_length)
 
                     if not tooshort:
-                        fastq1out_fh.write(read_template.format(**read1_dict))
-                        fastq2out_fh.write(read_template.format(**read2_dict))
+                        if is_python3():
+                            fastq1out_fh.write(read_template.format(**read1_dict).encode())
+                            fastq2out_fh.write(read_template.format(**read2_dict).encode())
+                        else:
+                            fastq1out_fh.write(read_template.format(**read1_dict))
+                            fastq2out_fh.write(read_template.format(**read2_dict))
             else:
                 for read1_dict in chunk:
                     if options.dual_index and options.CB:
@@ -307,7 +311,10 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
                     read1_dict = _extract_readnum(read1_dict)
                     if len(read1_dict['seq']) >= min_length:
                         if fastq1out_fh:
-                            fastq1out_fh.write(read_template.format(**read1_dict))
+                            if is_python3():
+                                fastq1out_fh.write(read_template.format(**read1_dict).encode())
+                            else:
+                                fastq1out_fh.write(read_template.format(**read1_dict))
                         else:
                             sys.stdout.write(read_template.format(**read1_dict))
 
