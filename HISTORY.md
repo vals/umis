@@ -1,3 +1,6 @@
+## 1.0.9 (in progress)
+- Support dual UMI indexes with bamtag.
+
 ## 1.0.8
 - Add support for dual UMI indexes. Thanks @lbeltrame!
 
