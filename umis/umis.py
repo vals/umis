@@ -157,7 +157,8 @@ def construct_transformed_regex(annotations):
     if "cellular" in annotations:
         re_string += ":CELL_(?P<CB>.*)"
     if "molecular" in annotations:
-        re_string += ":UMI_(?P<MB>\w*)"
+        # Detect dual UMIs spaced with either _ or - if present
+        re_string += ':UMI_(?P<MB>\w[-_\w]*)'
     if "sample" in annotations:
         re_string += ":SAMPLE_(?P<SB>\w*)"
     if re_string == ".*":
