@@ -206,7 +206,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
     elif options.CB or demuxed_cb:
         logger.info("Detected cellular barcodes.")
         read_template += ':CELL_{CB}'
-    if options.MB and options.dual_index:
+    if options.MB and options.dual_mb:
         logger.info("Detected dual UMI.")
         read_template += ':UMI_{MB1}-{MB2}'
     elif options.MB:
@@ -263,7 +263,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
                     if demuxed_cb:
                         read1_dict['CB'] = demuxed_cb
                         read2_dict['CB'] = demuxed_cb
-                    if options.dual_index and options.MB:
+                    if options.dual_mb and options.MB:
                         read1_dict['MB'] = read1_dict['MB1'] + read2_dict['MB2']
 
                     # Deal with spaces in read names
@@ -295,7 +295,7 @@ def fastqtransform(transform, fastq1, fastq2, fastq3, fastq4, keep_fastq_tags,
                     if demuxed_cb:
                         read1_dict['CB'] = demuxed_cb
 
-                    if options.dual_index and options.MB:
+                    if options.dual_mb and options.MB:
                         read1_dict['MB'] = read1_dict['MB1'] + read1_dict['MB2']
 
                     # Deal with spaces in read names
@@ -320,13 +320,16 @@ def _infer_transform_options(transform):
     figure out what transform options should be by examining the provided
     regexes for keywords
     """
-    TransformOptions = collections.namedtuple("TransformOptions",
-                                              ['CB', 'dual_index', 'triple_index', 'MB', 'SB'])
+    TransformOptions = collections.namedtuple(
+        "TransformOptions",
+        ['CB', 'dual_index', 'triple_index', 'MB', 'dual_mb', 'SB'],
+    )
     CB = False
     SB = False
     MB = False
     dual_index = False
     triple_index = False
+    dual_mb = False
     for rx in transform.values():
         if not rx:
             continue
@@ -336,14 +339,21 @@ def _infer_transform_options(transform):
             else:
                 dual_index = True
         if "MB1" in rx:
-            dual_index = True
+            dual_mb = True
         if "SB" in rx:
             SB = True
         if "CB" in rx:
             CB = True
         if "MB" in rx:
             MB = True
-    return TransformOptions(CB=CB, dual_index=dual_index, triple_index=triple_index, MB=MB, SB=SB)
+    return TransformOptions(
+        CB=CB,
+        dual_index=dual_index,
+        triple_index=triple_index,
+        MB=MB,
+        dual_mb=dual_mb,
+        SB=SB,
+    )
 
 def _extract_readnum(read_dict):
     """Extract read numbers from old-style fastqs.
@@ -499,7 +509,7 @@ def tagcount(sam, out, genemap, output_evidence_table, positional, minevidence,
     cb_hist = None
     filter_cb = False
     if cb_histogram:
-        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=None, squeeze=True, sep="\t")
+        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=None, sep="\t").squeeze("columns")
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
         logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
@@ -772,7 +782,7 @@ def fasttagcount(sam, out, genemap, positional, minevidence, cb_histogram,
     cb_hist = None
     filter_cb = False
     if cb_histogram:
-        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=None, squeeze=True, sep="\t")
+        cb_hist = pd.read_csv(cb_histogram, index_col=0, header=None, sep="\t").squeeze("columns")
         total_num_cbs = cb_hist.shape[0]
         cb_hist = cb_hist[cb_hist > cb_cutoff]
         logger.info('Keeping {} out of {} cellular barcodes.'.format(cb_hist.shape[0], total_num_cbs))
